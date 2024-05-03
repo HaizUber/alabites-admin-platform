@@ -45,30 +45,39 @@ const AdminDashboard = () => {
   }, [uid]); // Dependency on UID to fetch admin information
 
   return (
-<div className="flex bg-gray-200 min-h-screen"> 
-  <VerticalMenu />
-  <div className="flex flex-col flex-1 bg-gray-100 border-l border-gray-100"> 
-    <div className="bg-white shadow rounded-lg p-4 mb-4"> 
-      <h1 className="text-center text-2xl font-bold text-green-700 sm:text-2xl text">Dashboard</h1> 
-    </div>
-    {/* Add your dashboard elements here */}
-    <div className="flex flex-col p-4">
-      {/* Example Dashboard Elements inside rounded boxes */}
-      <div className="bg-white shadow rounded-lg p-4 mb-4">
-        {/* Content */}
-      </div>
-      <div className="bg-white shadow rounded-lg p-4 mb-4">
-        {/* Content */}
-      </div>
-      <div className="bg-white shadow rounded-lg p-4 mb-4">
-        {/* Content */}
-      </div>
-    </div>
+    <div className="flex bg-gray-200 min-h-screen"> 
+      <VerticalMenu />
+      <div className="flex flex-col flex-1 bg-gray-100 border-l border-gray-100 p-3">
+        <div className="bg-white shadow rounded-lg p-2 sm:p-3 mb-4 max-w-xl sm:max-w-7xl">
+          <h1 className="text-center text-lg sm:text-2xl font-bold text-gray-700">Dashboard</h1>
+        </div>
+  
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 sm:gap-3">
+  <div className="flex flex-col rounded-lg border border-gray-300 px-4 py-8 text-center shadow-md transition duration-300 hover:shadow-lg bg-gradient-to-r from-orange-500 to-orange-300 bg-opacity-70">
+    <dt className="order-last text-lg font-medium text-gray-100">Total Products Sold</dt>
+    <dd className="text-4xl font-extrabold text-gray-100 md:text-5xl">1,234</dd>
   </div>
-  <ToastContainer />
+
+  <div className="flex flex-col rounded-lg border border-gray-300 px-4 py-8 text-center shadow-md transition duration-300 hover:shadow-lg bg-gradient-to-r from-teal-500 to-teal-300 bg-opacity-70">
+    <dt className="order-last text-lg font-medium text-gray-100">Products Available</dt>
+    <dd className="text-4xl font-extrabold text-gray-100 md:text-5xl">567</dd>
+  </div>
+
+  <div className="flex flex-col rounded-lg border border-gray-300 px-4 py-8 text-center shadow-md transition duration-300 hover:shadow-lg bg-gradient-to-r from-purple-500 to-purple-300 bg-opacity-70">
+    <dt className="order-last text-lg font-medium text-gray-100">Total Sales</dt>
+    <dd className="text-4xl font-extrabold text-gray-100 md:text-5xl">$890</dd>
+  </div>
+
+  <div className="flex flex-col rounded-lg border border-gray-300 px-4 py-8 text-center shadow-md transition duration-300 hover:shadow-lg bg-gradient-to-r from-blue-500 to-blue-300 bg-opacity-70">
+    <dt className="order-last text-lg font-medium text-gray-100">Total Sales in the last 7 Days</dt>
+    <dd className="text-4xl font-extrabold text-gray-100 md:text-5xl">$123</dd>
+  </div>
 </div>
 
-
+  
+        <ToastContainer />
+      </div>
+    </div>
 
   );
 }
