@@ -10,6 +10,11 @@ function AdminLoginPage() {
   const [password, setPassword] = useState("");
   const navigate = useNavigate();
 
+  const handleSignUpClick = (e) => {
+    e.preventDefault();
+    navigate("/register");
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
@@ -20,7 +25,7 @@ function AdminLoginPage() {
       // Delay the redirection by a short time to ensure the toast notification is displayed
       setTimeout(() => {
         // Redirect to LandingPage.js upon successful login
-        navigate("/dashboard");
+        navigate("/create-store-form");
       }, 1500); // You can adjust the delay time as needed
     } catch (error) {
       console.error("Error signing in:", error);
@@ -34,15 +39,14 @@ function AdminLoginPage() {
   return (
     <div className="mx-auto max-w-screen-xl px-4 py-16 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-lg">
-        <h1 className="text-center text-2xl font-bold text-indigo-600 sm:text-3xl">Get started today</h1>
+        <h1 className="text-center text-2xl font-bold text-green-700 sm:text-3xl">Alabites Admin Dashboard</h1>
 
         <p className="mx-auto mt-4 max-w-md text-center text-gray-500">
-          Lorem ipsum dolor sit amet, consectetur adipisicing elit. Obcaecati sunt dolores deleniti
-          inventore quaerat mollitia?
+          Easily Create and Manage your stores on the Alabites Food Ordering Website!
         </p>
 
         <form onSubmit={handleLogin} className="mb-0 mt-6 space-y-4 rounded-lg p-4 shadow-lg sm:p-6 lg:p-8">
-          <p className="text-center text-lg font-medium">Sign in to your account</p>
+          <p className="text-center text-lg font-medium">Sign in to your merchant account</p>
 
           <div>
             <label htmlFor="email" className="sr-only">Email</label>
@@ -114,14 +118,16 @@ function AdminLoginPage() {
 
           <button
             type="submit"
-            className="block w-full rounded-lg bg-indigo-600 px-5 py-3 text-sm font-medium text-white"
+            className="block w-full rounded-lg bg-green-600 px-5 py-3 text-sm font-medium text-white"
           >
             Sign in
           </button>
 
           <p className="text-center text-sm text-gray-500">
             No account?
-            <a className="underline" href="#">Sign up</a>
+                <a href="#" className="underline" onClick={handleSignUpClick}>
+      Sign up
+    </a>
           </p>
         </form>
       </div>

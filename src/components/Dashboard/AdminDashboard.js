@@ -48,9 +48,6 @@ const AdminDashboard = () => {
     <div className="flex bg-gray-200 min-h-screen"> 
       <VerticalMenu />
       <div className="flex flex-col flex-1 bg-gray-100 border-l border-gray-100 p-3">
-        <div className="bg-white shadow rounded-lg p-2 sm:p-3 mb-4 max-w-xl sm:max-w-7xl">
-          <h1 className="text-center text-lg sm:text-2xl font-bold text-gray-700">Dashboard</h1>
-        </div>
   
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 sm:gap-3">
   <div className="flex flex-col rounded-lg border border-gray-300 px-4 py-8 text-center shadow-md transition duration-300 hover:shadow-lg bg-gradient-to-r from-orange-500 to-orange-300 bg-opacity-70">

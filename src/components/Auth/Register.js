@@ -50,20 +50,61 @@ function AdminRegisterPage() {
           toast.error("Invalid email address.");
           return;
         }
-  
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
-        
-  
-        await axios.post("https://alabites-api.vercel.app/admins", {
-            uid: user.uid,
-            email,
-            firstName,
-            lastName,
-            username,
-            role: "Merchant Admin" // Include the initial role here
-          });
-          
+      const getFirebaseUID = () => {
+          const currentUser = auth.currentUser;
+          return currentUser ? currentUser.uid : null;
+        };  
+// Function to generate a unique admin UID
+const generateAdminUID = async () => {
+  const prefix = "7000";
+  let uid;
+
+  do {
+    const randomDigits = Math.floor(100000 + Math.random() * 900000); // Generate random 6-digit number
+    uid = prefix + randomDigits;
+    console.log(uid);
+
+    try {
+      // Check if UID exists by sending a GET request
+      const response = await axios.get(`https://alabites-api.vercel.app/admins/query/${uid}`);
+      
+      // If UID does not exist (returns 404), break out of the loop
+      if (response.status === 404) {
+        break;
+      }
+    } catch (error) {
+      // Check if the error response status code is 404, if so, break out of the loop
+      if (error.response && error.response.status === 404) {
+        break;
+      }
+      
+      // Log any other errors encountered during the GET request
+      console.error("Error checking UID:", error);
+    }
+  } while (true);
+
+  return uid;
+};
+
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+    
+    // Generate a unique admin UID
+    const uid = await generateAdminUID();
+
+    // Get the Firebase UID of the current user
+    const firebaseUID = getFirebaseUID(); 
+
+    // Post the admin data with the generated UID
+    await axios.post("https://alabites-api.vercel.app/admins", {
+        uid,
+        firebaseUID,
+        email,
+        firstName,
+        lastName,
+        username,
+        role: "Merchant Admin" // Include the initial role here
+      });
   
   // Show success toast with a timeout
   toast.success("Registration successful! Redirecting...", {
