@@ -66,24 +66,72 @@ const StoreForm = () => {
     }));
   };
 
-  const generateStoreId = () => {
+  const generateStoreId = async () => {
     const prefix = "4000";
-    const randomDigits = Math.floor(100000 + Math.random() * 900000); // Generate 6 random digits
-    return prefix + randomDigits;
+    let storeId;
+  
+    do {
+      const randomDigits = Math.floor(100000 + Math.random() * 900000); // Generate random 6-digit number
+      storeId = prefix + randomDigits;
+      console.log(storeId);
+  
+      try {
+        // Check if storeId exists by sending a GET request
+        const response = await axios.get(`https://alabites-api.vercel.app/store/query/${storeId}`);
+        
+        // If storeId does not exist (returns 404), break out of the loop
+        if (response.status === 404) {
+          break;
+        }
+      } catch (error) {
+        // Check if the error response status code is 404, if so, break out of the loop
+        if (error.response && error.response.status === 404) {
+          break;
+        }
+        
+        // Log any other errors encountered during the GET request
+        console.error("Error checking storeID:", error);
+      }
+    } while (true);
+  
+    return storeId;
   };
-
+  
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      // Function to get the UID of the current user from the API
+      const getCurrentUserUid = async () => {
+        try {
+          // Make a request to your backend API to fetch the UID of the current user
+          const response = await fetch(`https://alabites-api.vercel.app/admins/query/${auth.currentUser.uid}`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.data) {
+              return data.data.uid;
+            } else {
+              throw new Error('UID not found for the current user');
+            }
+          } else {
+            throw new Error('Failed to fetch UID for the current user');
+          }
+        } catch (error) {
+          throw new Error('Error fetching UID for the current user: ' + error.message);
+        }
+      };
+  
+      // Get the UID of the current user
+      const storeOwnerUid = await getCurrentUserUid();
+  
       // Generate a unique store ID
-      const storeId = generateStoreId();
+      const storeId = await generateStoreId(); // Await for the storeId generation
   
       // Prepare the data for store creation in a structured way
       const storeData = {
         storeName: formData.storeName,
         storeType: formData.storeType,
         description: formData.description,
-        storeOwner: uid, // Include the uid as storeOwner
+        storeOwner: storeOwnerUid, // Include the uid as storeOwner
         storeId: storeId // Include the generated storeId
       };
   
@@ -109,9 +157,9 @@ const StoreForm = () => {
       console.error('Error creating store:', error.message);
       toast.error('Failed to create store');
     }
-  };  
+  };
   
-
+  
   return (
     <div className="max-w-md mx-auto">
       <h1 className="text-3xl font-semibold mb-4">Welcome, {username || 'Merchant'}</h1>

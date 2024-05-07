@@ -22,23 +22,26 @@ const AdminDashboard = () => {
   useEffect(() => {
     const fetchAdminInfo = async () => {
       try {
-        const response = await fetch('https://alabites-api.vercel.app/admins');
-        if (response.ok) {
-          const data = await response.json();
-          const admin = data.data.find(admin => admin.uid === uid);
-          if (admin) {
-            setAdminInfo(admin);
+          const response = await fetch(`https://alabites-api.vercel.app/admins/query/${uid}`);
+          if (response.ok) {
+              const data = await response.json();
+              console.log('Response data:', data); // Log the response data
+              const admin = data.data; // Access the admin object directly
+              if (admin) {
+                  setAdminInfo(admin);
+                  toast.success('Admin information fetched successfully');
+              } else {
+                  toast.error('Admin not found');
+              }
           } else {
-            toast.error('Admin not found');
+              const errorMessage = await response.text(); // Get the error message from the response
+              toast.error(`Failed to fetch admins: ${errorMessage}`);
           }
-        } else {
-          toast.error('Failed to fetch admins');
-        }
       } catch (error) {
-        toast.error('Error fetching admins: ' + error.message);
+          console.error('Error fetching admins:', error);
+          toast.error('Error fetching admins');
       }
-    };
-
+  };
     if (uid) {
       fetchAdminInfo();
     }
