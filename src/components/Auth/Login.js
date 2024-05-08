@@ -25,7 +25,7 @@ function AdminLoginPage() {
       // Delay the redirection by a short time to ensure the toast notification is displayed
       setTimeout(() => {
         // Redirect to LandingPage.js upon successful login
-        navigate("/create-store-form");
+        navigate("/dashboard");
       }, 1500); // You can adjust the delay time as needed
     } catch (error) {
       console.error("Error signing in:", error);

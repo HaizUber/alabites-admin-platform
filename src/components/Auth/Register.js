@@ -103,6 +103,7 @@ const generateAdminUID = async () => {
         firstName,
         lastName,
         username,
+        avatar: '',
         role: "Merchant Admin" // Include the initial role here
       });
   
