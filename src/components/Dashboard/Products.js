@@ -11,7 +11,6 @@ const ProductListPage = () => {
   const [products, setProducts] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [storeExists, setStoreExists] = useState(true); // Set initial state to true
   
   // Define formData state to store form input values
   const [formData, setFormData] = useState({
@@ -62,49 +61,47 @@ const ProductListPage = () => {
     }
   }, [uid]);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // Fetch store ID first
-        const storeResponse = await axios.get(`https://alabites-api.vercel.app/store/query/${adminuid}`);
+useEffect(() => {
+  const fetchData = async () => {
+    try {
+      const storeResponse = await axios.get(`https://alabites-api.vercel.app/store/query/${adminuid}`);
+      if (storeResponse.status === 200) {
         const { storeId } = storeResponse.data.data;
-        console.log('Store ID:', storeId);
-  
+
         const response = await axios.get(`https://alabites-api.vercel.app/products/query/${storeId}`);
         if (response.status === 200) {
-          const { data } = response;
-          console.log('Products:', data);
-  
-          if (data && data.length > 0) {
-            setProducts(data);
+          const responseData = response.data;
+          console.log('Products:', responseData);
+
+          if (responseData && responseData.data && responseData.data.length > 0) {
+            setProducts(responseData.data);
+            setLoading(false);
+            toast.success('Products fetched successfully');
           } else {
-            setStoreExists(false); // Set storeExists to false if no products are found
+            toast.error('No products found for this store.');
+            setLoading(false);
           }
-          setLoading(false);
-        } else if (response.status === 404) {
-          setStoreExists(false);
-          setLoading(false);
         } else {
           toast.error('Failed to fetch products');
-        }
-      } catch (error) {
-        console.error('Error fetching products:', error);
-        toast.error('Error fetching products');
-  
-        if (error.response && error.response.status === 404) {
-          setStoreExists(false);
           setLoading(false);
         }
+      } else if (storeResponse.status === 404) {
+        toast.error('Store not found');
+        setLoading(false);
       }
-    };
-  
-    if (adminuid) {
-      fetchData();
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      toast.error('Error fetching products');
+      setLoading(false);
     }
-  }, [adminuid]);
-  
-  
+  };
 
+  if (adminuid) {
+    fetchData();
+  }
+}, [adminuid]);
+
+  
   const handleCreateProduct = () => {
     setShowModal(true);
   };
@@ -217,8 +214,6 @@ const ProductListPage = () => {
     }
   };
   
-  
-
   return (
     <div className="flex bg-gray-200 min-h-screen">
       <VerticalMenu />
@@ -228,25 +223,16 @@ const ProductListPage = () => {
           <p>Loading...</p>
         ) : (
           <div className="grid grid-cols-3 gap-4">
-            <div className="mt-4">
-            {storeExists ? ( 
-                  <>
-                    {/* Display products */}
-                    {products.map(product => (
-                      <div key={product._id} className="bg-white p-4 rounded shadow">
-                        <h2 className="text-lg font-semibold mb-2">{product.name}</h2>
-                        <p className="text-gray-600">{product.description}</p>
-                        <p className="text-gray-600 mt-2">Price: ${product.price}</p>
-                      </div>
-                    ))}
-                  </>
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full">
-                  <p className="text-gray-700 text-lg mb-4">No products found for this store.</p>
-                  <button onClick={handleCreateProduct} className="bg-blue-500 text-white rounded-md py-2 px-4 hover:bg-blue-600 focus:outline-none focus:bg-blue-600">Add Product</button>
-                </div>
-              )}
-            </div>
+            {products.map(product => (
+              <div key={product._id} className="mt-4 bg-white p-4 rounded shadow">
+                <h3 className="text-lg font-bold text-gray-900 sm:text-xl">Product Name:</h3>
+                <p className="mt-1 text-xs font-medium text-gray-600">{product.name}</p>
+                <h3 className="text-lg font-bold text-gray-900 sm:text-xl mt-4">Product Description:</h3>
+                <p className="mt-1 text-xs font-medium text-gray-600">{product.description}</p>
+                <h3 className="text-lg font-bold text-gray-900 sm:text-xl mt-4">Product Price:</h3>
+                <p className="mt-1 text-xs font-medium text-gray-600">${product.price}</p>
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -267,26 +253,26 @@ const ProductListPage = () => {
                     </h3>
                     <div className="mt-2">
                       <form>
-                      <div className="mb-4">
-  <label htmlFor="name" className="block text-gray-700 text-sm font-bold mb-2">Product Name:</label>
-  <input type="text" id="name" name="name" value={formData.name} onChange={handleChange} className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
-</div>
-<div className="mb-4">
-  <label htmlFor="description" className="block text-gray-700 text-sm font-bold mb-2">Product Description:</label>
-  <textarea id="description" name="description" value={formData.description} onChange={handleChange} className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
-</div>
-<div className="mb-4">
-  <label htmlFor="category" className="block text-gray-700 text-sm font-bold mb-2">Product Category:</label>
-  <input type="text" id="category" name="category" value={formData.category} onChange={handleChange} className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
-</div>
-<div className="mb-4">
-  <label htmlFor="price" className="block text-gray-700 text-sm font-bold mb-2">Product Price:</label>
-  <input type="number" id="price" name="price" value={formData.price} onChange={handleChange} className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
-</div>
-<div className="mb-4">
-  <label htmlFor="productphoto" className="block text-gray-700 text-sm font-bold mb-2">Product Photo:</label>
-  <input type="file" id="productphoto" name="productphoto" onChange={handleFileChange} required accept="image/*" className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
-</div>
+                        <div className="mb-4">
+                          <label htmlFor="name" className="block text-gray-700 text-sm font-bold mb-2">Product Name:</label>
+                          <input type="text" id="name" name="name" value={formData.name} onChange={handleChange} className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
+                        </div>
+                        <div className="mb-4">
+                          <label htmlFor="description" className="block text-gray-700 text-sm font-bold mb-2">Product Description:</label>
+                          <textarea id="description" name="description" value={formData.description} onChange={handleChange} className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
+                        </div>
+                        <div className="mb-4">
+                          <label htmlFor="category" className="block text-gray-700 text-sm font-bold mb-2">Product Category:</label>
+                          <input type="text" id="category" name="category" value={formData.category} onChange={handleChange} className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
+                        </div>
+                        <div className="mb-4">
+                          <label htmlFor="price" className="block text-gray-700 text-sm font-bold mb-2">Product Price:</label>
+                          <input type="number" id="price" name="price" value={formData.price} onChange={handleChange} className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
+                        </div>
+                        <div className="mb-4">
+                          <label htmlFor="productphoto" className="block text-gray-700 text-sm font-bold mb-2">Product Photo:</label>
+                          <input type="file" id="productphoto" name="productphoto" onChange={handleFileChange} required accept="image/*" className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
+                        </div>
                       </form>
                     </div>
                   </div>
@@ -307,6 +293,7 @@ const ProductListPage = () => {
       <ToastContainer/>
     </div>
   );
-};
-
-export default ProductListPage;
+  };
+  
+  export default ProductListPage;
+  
