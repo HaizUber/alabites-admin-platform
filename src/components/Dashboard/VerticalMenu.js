@@ -99,7 +99,7 @@ const GridIcon = (
       };
   
       return (
-          <div className="flex h-screen flex-col justify-between border-e bg-white">
+          <div className="sticky top-0 h-screen flex flex-col justify-between border-e bg-white">
               <div className="px-4 py-6">
               <img src={logo} alt="Logo" className="h-22 w-32 rounded-lg text-xs text-gray-600" />
   

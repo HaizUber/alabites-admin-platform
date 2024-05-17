@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { auth } from '../../config/firebase'; // Import Firebase auth
 import { ToastContainer, toast } from 'react-toastify';
@@ -12,7 +12,7 @@ const ProductListPage = () => {
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [filteredProducts, setFilteredProducts] = useState(products);
   const [formData, setFormData] = useState({
     productName: '',
     productDescription: '',
@@ -103,47 +103,50 @@ const JSIcon = (
       fetchAdminInfo();
     }
   }, [uid]);
-
-useEffect(() => {
-  const fetchData = async () => {
-    try {
-      const storeResponse = await axios.get(`https://alabites-api.vercel.app/store/query/${adminuid}`);
-      if (storeResponse.status === 200) {
-        const { storeId } = storeResponse.data.data;
-
-        const response = await axios.get(`https://alabites-api.vercel.app/products/query/${storeId}`);
-        if (response.status === 200) {
-          const responseData = response.data;
-          console.log('Products:', responseData);
-
-          if (responseData && responseData.data && responseData.data.length > 0) {
-            setProducts(responseData.data);
-            setLoading(false);
-            toast.success('Products fetched successfully');
-          } else {
-            toast.error('No products found for this store.');
+  
+    useEffect(() => {
+      const fetchData = async () => {
+        try {
+          const storeResponse = await axios.get(`https://alabites-api.vercel.app/store/query/${adminuid}`);
+          if (storeResponse.status === 200) {
+            const { storeId } = storeResponse.data.data;
+  
+            const response = await axios.get(`https://alabites-api.vercel.app/products/query/${storeId}`);
+            if (response.status === 200) {
+              const responseData = response.data;
+              console.log('Products:', responseData);
+  
+              if (responseData && responseData.data && responseData.data.length > 0) {
+                // Set both products and filteredProducts with fetched data
+                setProducts(responseData.data);
+                setFilteredProducts(responseData.data);
+                setLoading(false);
+                toast.success('Products fetched successfully');
+              } else {
+                toast.error('No products found for this store.');
+                setLoading(false);
+              }
+            } else {
+              toast.error('Failed to fetch products');
+              setLoading(false);
+            }
+          } else if (storeResponse.status === 404) {
+            toast.error('Store not found');
             setLoading(false);
           }
-        } else {
-          toast.error('Failed to fetch products');
+        } catch (error) {
+          console.error('Error fetching products:', error);
+          toast.error('Error fetching products');
           setLoading(false);
         }
-      } else if (storeResponse.status === 404) {
-        toast.error('Store not found');
-        setLoading(false);
+      };
+  
+      // Fetch data when adminuid is available
+      if (adminuid) {
+        fetchData();
       }
-    } catch (error) {
-      console.error('Error fetching products:', error);
-      toast.error('Error fetching products');
-      setLoading(false);
-    }
-  };
-
-  if (adminuid) {
-    fetchData();
-  }
-}, [adminuid]);
-
+    }, [adminuid]);
+  
   
   const handleCreateProduct = () => {
     setShowModal(true);
@@ -376,48 +379,125 @@ useEffect(() => {
     }
   };
   
+  const handleDeleteProduct = async (productId) => {
+    try {
+      const response = await axios.delete(`https://alabites-api.vercel.app/products/${productId}`);
+      if (response.status === 200) {
+        // Update products state by filtering out the deleted product
+        setProducts(products.filter(product => product._id !== productId));
+        toast.success('Product deleted successfully');
+      } else {
+        toast.error('Failed to delete product');
+      }
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      toast.error('Error deleting product');
+    }
+  };
+
+// Handle product name filter
+const handleProductNameFilter = (searchTerm) => {
+  if (!searchTerm.trim()) {
+    // If search term is empty, reset filtered products to all products
+    setFilteredProducts(products);
+  } else {
+    // If search term is provided, filter products by product name
+    const filtered = products.filter(product =>
+      product.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    setFilteredProducts(filtered);
+  }
+};
+
+
 return (
   <div className="flex bg-gray-200 min-h-screen">
     <VerticalMenu />
     <div className="flex flex-col flex-1">
       <h1 className="text-2xl font-bold mb-4">Products</h1>
-      <button
-        onClick={handleCreateProduct}
-        className="mb-4 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-      >
-        Create New Product
-      </button>
-      <div className="min-h-screen bg-gradient-to-tr from-red-300 to-yellow-200 flex justify-center items-center py-20">
-      <div className="md:px-4 md:grid md:grid-cols-2 lg:grid-cols-3 gap-5 space-y-4 md:space-y-0">
-        {products.map((product, index) => (
-          <div key={index} className="max-w-sm bg-white px-6 pt-6 pb-2 rounded-xl shadow-lg transform hover:scale-105 transition duration-500">
-            <div className="relative">
-              <img className="w-full rounded-xl" src={product.productphoto} alt={product.name} />
-              <p className="absolute top-0 bg-yellow-300 text-gray-800 font-semibold py-1 px-3 rounded-br-lg rounded-tl-lg">Php{product.price}</p>
-            </div>
-            <h1 className="mt-4 text-gray-800 text-2xl font-bold cursor-pointer">{product.name}</h1>
-            <p className="text-gray-600 mt-2">{product.description}</p>
-            <div className="my-4">
-              <div className="flex space-x-1 items-center">
-                {PartsIcon}
-                <p>{product.category}</p>
-              </div>
-              <div className="flex space-x-1 items-center">
-                {ClockIcon}
-                <p>{product.createdAt}</p>
-              </div>
-              <div className="flex space-x-1 items-center">
-                {ClockIcon}
-                <p>{product.updatedAt}</p>
-              </div>
-              <button onClick={() => handleEditProduct(product)} className="mt-4 text-xl w-full text-white bg-indigo-600 py-2 rounded-xl shadow-lg">Edit Product</button>
-              <button className="mt-4 text-xl w-full text-white bg-red-600 py-2 rounded-xl shadow-lg">Delete Product</button>
-            </div>
-            
-          </div>
-        ))}
+      <div className="bg-white p-4 rounded-xl shadow-md">
+      <div className="space-y-2">
+  {/* Filter by Product Name */}
+  <details
+    className="overflow-hidden rounded border border-gray-300 [&_summary::-webkit-details-marker]:hidden"
+  >
+    <summary
+      className="flex cursor-pointer items-center justify-between gap-2 bg-white p-4 text-gray-900 transition"
+    >
+      <span className="text-sm font-medium"> Filters </span>
+
+      <span className="transition group-open:-rotate-180">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          strokeWidth="1.5"
+          stroke="currentColor"
+          className="h-4 w-4"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+        </svg>
+      </span>
+    </summary>
+
+    <div className="border-t border-gray-200 bg-white">
+      {/* Input field for searching product names */}
+      <div className="p-4">
+        <input
+          type="text"
+          placeholder="Search by product name..."
+          className="w-full rounded-md border-gray-200 shadow-sm sm:text-sm"
+          // Implement onChange handler to handle search input changes
+          onChange={(e) => handleProductNameFilter(e.target.value)}
+        />
       </div>
     </div>
+  </details>
+
+  {/* Other filters */}
+  {/* Add other filter details here */}
+</div>
+
+        {/* Add Product Button */}
+        <button
+          onClick={handleCreateProduct}
+          className="bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg hover:bg-blue-600 transition duration-300"
+          >
+            Add Product
+          </button>
+        </div>
+  
+        <div className="flex justify-center items-center py-20">
+          <div className="md:px-4 md:grid md:grid-cols-2 lg:grid-cols-3 gap-5 space-y-4 md:space-y-0">
+            {filteredProducts.map((product, index) => (
+              <div key={index} className="max-w-sm bg-white px-6 pt-6 pb-2 rounded-xl shadow-lg transform hover:scale-105 transition duration-500">
+                <div className="relative">
+                  <img className="w-full rounded-xl" src={product.productphoto} alt={product.name} />
+                  <p className="absolute top-0 bg-yellow-300 text-gray-800 font-semibold py-1 px-3 rounded-br-lg rounded-tl-lg">Php{product.price}</p>
+                </div>
+                <h1 className="mt-4 text-gray-800 text-2xl font-bold cursor-pointer">{product.name}</h1>
+                <p className="text-gray-600 mt-2">{product.description}</p>
+                <div className="my-4">
+                  <div className="flex space-x-1 items-center">
+                    {PartsIcon}
+                    <p>{product.category}</p>
+                  </div>
+                  <div className="flex space-x-1 items-center">
+                    {ClockIcon}
+                    <p>{product.createdAt}</p>
+                  </div>
+                  <div className="flex space-x-1 items-center">
+                    {ClockIcon}
+                    <p>{product.updatedAt}</p>
+                  </div>
+                  <button onClick={() => handleEditProduct(product)} className="mt-4 text-xl w-full text-white bg-indigo-600 py-2 rounded-xl shadow-lg">Edit Product</button>
+                  <button onClick={() => handleDeleteProduct(product._id)} className="mt-4 text-xl w-full text-white bg-red-600 py-2 rounded-xl shadow-lg">Delete Product</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
 
       {/* Modal */}
       {showModal && (
