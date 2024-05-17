@@ -13,6 +13,8 @@ const ProductListPage = () => {
   const [loading, setLoading] = useState(true);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [filteredProducts, setFilteredProducts] = useState(products);
+  const [minPrice, setMinPrice] = useState('');
+const [maxPrice, setMaxPrice] = useState('');
   const [formData, setFormData] = useState({
     productName: '',
     productDescription: '',
@@ -103,7 +105,7 @@ const JSIcon = (
       fetchAdminInfo();
     }
   }, [uid]);
-  
+
     useEffect(() => {
       const fetchData = async () => {
         try {
@@ -409,6 +411,33 @@ const handleProductNameFilter = (searchTerm) => {
   }
 };
 
+// Handle price filter
+const handlePriceFilter = (type) => {
+  let filtered = [...filteredProducts];
+  switch (type) {
+    case 'high-low':
+      filtered.sort((a, b) => b.price - a.price);
+      break;
+    case 'low-high':
+      filtered.sort((a, b) => a.price - b.price);
+      break;
+    default:
+      break;
+  }
+  setFilteredProducts(filtered);
+};
+
+// Handle price range filter
+const handlePriceRangeFilter = () => {
+  const min = parseFloat(minPrice);
+  const max = parseFloat(maxPrice);
+  if (!isNaN(min) && !isNaN(max)) {
+    const filtered = products.filter(product =>
+      product.price >= min && product.price <= max
+    );
+    setFilteredProducts(filtered);
+  }
+};
 
 return (
   <div className="flex bg-gray-200 min-h-screen">
@@ -416,47 +445,73 @@ return (
     <div className="flex flex-col flex-1">
       <h1 className="text-2xl font-bold mb-4">Products</h1>
       <div className="bg-white p-4 rounded-xl shadow-md">
-      <div className="space-y-2">
-  {/* Filter by Product Name */}
-  <details
-    className="overflow-hidden rounded border border-gray-300 [&_summary::-webkit-details-marker]:hidden"
-  >
-    <summary
-      className="flex cursor-pointer items-center justify-between gap-2 bg-white p-4 text-gray-900 transition"
-    >
-      <span className="text-sm font-medium"> Filters </span>
+        <div className="space-y-2">
+          {/* Filter by Product Name */}
+          <details
+            className="overflow-hidden rounded border border-gray-300 [&_summary::-webkit-details-marker]:hidden"
+          >
+            <summary
+              className="flex cursor-pointer items-center justify-between gap-2 bg-white p-4 text-gray-900 transition"
+            >
+              <span className="text-sm font-medium"> Filters </span>
 
-      <span className="transition group-open:-rotate-180">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          strokeWidth="1.5"
-          stroke="currentColor"
-          className="h-4 w-4"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-        </svg>
-      </span>
-    </summary>
+              <span className="transition group-open:-rotate-180">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth="1.5"
+                  stroke="currentColor"
+                  className="h-4 w-4"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                </svg>
+              </span>
+            </summary>
 
-    <div className="border-t border-gray-200 bg-white">
-      {/* Input field for searching product names */}
-      <div className="p-4">
-        <input
-          type="text"
-          placeholder="Search by product name..."
-          className="w-full rounded-md border-gray-200 shadow-sm sm:text-sm"
-          // Implement onChange handler to handle search input changes
-          onChange={(e) => handleProductNameFilter(e.target.value)}
-        />
-      </div>
-    </div>
-  </details>
+            <div className="border-t border-gray-200 bg-white">
+              {/* Input field for searching product names */}
+              <div className="p-4">
+                <input
+                  type="text"
+                  placeholder="Search by product name..."
+                  className="w-full rounded-md border-gray-200 shadow-sm sm:text-sm"
+                  // Implement onChange handler to handle search input changes
+                  onChange={(e) => handleProductNameFilter(e.target.value)}
+                />
+              </div>
 
-  {/* Other filters */}
-  {/* Add other filter details here */}
-</div>
+              {/* Price filter */}
+              <div className="p-4 flex items-center">
+                <span className="text-gray-700 mr-2">Price:</span>
+                <button onClick={() => handlePriceFilter('high-low')} className="text-gray-700 mr-2">High-Low</button>
+                <button onClick={() => handlePriceFilter('low-high')} className="text-gray-700 mr-2">Low-High</button>
+              </div>
+
+              {/* Price range filter */}
+              <div className="p-4 flex items-center">
+                <span className="text-gray-700 mr-2">Price Range:</span>
+                <input
+                  type="number"
+                  placeholder="Min price"
+                  className="w-1/4 rounded-md border-gray-200 shadow-sm sm:text-sm mr-2"
+                  onChange={(e) => setMinPrice(e.target.value)}
+                />
+                <span className="text-gray-700 mr-2">to</span>
+                <input
+                  type="number"
+                  placeholder="Max price"
+                  className="w-1/4 rounded-md border-gray-200 shadow-sm sm:text-sm mr-2"
+                  onChange={(e) => setMaxPrice(e.target.value)}
+                />
+                <button onClick={handlePriceRangeFilter} className="bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg hover:bg-blue-600 transition duration-300">Apply</button>
+              </div>
+            </div>
+          </details>
+          {/* Other filters */}
+          {/* Add other filter details here */}
+        </div>
+
 
         {/* Add Product Button */}
         <button
