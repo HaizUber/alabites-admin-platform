@@ -1,7 +1,8 @@
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-import { getAuth } from "firebase/auth";
+// Import the compat namespace functions from the Firebase SDKs
+import firebase from "firebase/compat/app"; // Import compat namespace
+import "firebase/compat/auth"; // Import compat auth module
+import "firebase/compat/storage"; // Import compat storage module
+
 // Your web app's Firebase configuration
 const firebaseConfig = {
     apiKey: "AIzaSyC1jticEcRonbvSYwyYgDKMxC6dX3neUXE",
@@ -11,11 +12,11 @@ const firebaseConfig = {
     messagingSenderId: "367530158164",
     appId: "1:367530158164:web:63260800c63369704165c1",
     measurementId: "G-0MD0N75W8R"
-  };
+};
 
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
-const auth = getAuth(app);
+const app = firebase.initializeApp(firebaseConfig); // Use initializeApp from compat namespace
+const auth = firebase.auth(); // Use auth from compat namespace
+const storage = firebase.storage(); // Initialize storage from compat namespace
 
-export { auth }; // Exporting auth here
+export { auth, storage }; // Exporting auth and storage here

@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { auth } from '../../config/firebase'; // Import Firebase auth
+import { auth, storage } from '../../config/firebase'; // Import Firebase auth
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import VerticalMenu from './VerticalMenu';
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import { v4 as uuidv4 } from 'uuid';
 
 const ProductListPage = () => {
   const [uid, setUid] = useState(null);
@@ -14,21 +16,29 @@ const ProductListPage = () => {
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [filteredProducts, setFilteredProducts] = useState(products);
   const [minPrice, setMinPrice] = useState('');
+  const [isUploadingImages, setIsUploadingImages] = useState(false);
 const [maxPrice, setMaxPrice] = useState('');
-  const [formData, setFormData] = useState({
-    productName: '',
-    productDescription: '',
-    productPrice: '',
-    productCategory: '',
-    productPhoto: '', // Add a state for the product photo base64 string
-  });
-  const [editingProduct, setEditingProduct] = useState(null);
-const [editFormData, setEditFormData] = useState({
+const [formData, setFormData] = useState({
   name: '',
   description: '',
   price: '',
-  productphoto: '',
+  productPhotos: [],
+  stock: '',
+  tags: '',
+  discount: '',
 });
+
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [editFormData, setEditFormData] = useState({
+    name: '',
+    description: '',
+    price: '',
+    productPhotos: [], // Ensure this is initialized as an array
+    stock: '',
+    tags: '',
+    discount: '',
+  });
+  
 
   const PencilIcon = (
     <svg
@@ -149,7 +159,6 @@ const JSIcon = (
       }
     }, [adminuid]);
   
-  
   const handleCreateProduct = () => {
     setShowModal(true);
   };
@@ -161,215 +170,215 @@ const JSIcon = (
   const handleChange = e => {
     const { name, value } = e.target;
     setFormData(prevState => ({
-      ...prevState,
-      [name]: value
+        ...prevState,
+        [name]: value
     }));
-  };
+};
+
   
-  const handleFileChange = async (event) => {
-    const file = event.target.files[0];
-  
-    try {
-      const maxWidthOrHeight = 564; // Maximum width or height of the resized image
-  
+const handleFileChange = async (event) => {
+  const files = event.target.files;
+
+  try {
+    setIsUploadingImages(true); // Start image upload process
+    const maxWidthOrHeight = 564;
+    const photoURLs = [];
+
+    for (const file of files) {
       const img = new Image();
       img.src = URL.createObjectURL(file);
-  
-      img.onload = async () => {
-        let resizedWidth = img.width;
-        let resizedHeight = img.height;
-  
-        if (resizedWidth > maxWidthOrHeight || resizedHeight > maxWidthOrHeight) {
-          if (resizedWidth > resizedHeight) {
-            resizedWidth = maxWidthOrHeight;
-            resizedHeight = Math.round((maxWidthOrHeight * img.height) / img.width);
-          } else {
-            resizedHeight = maxWidthOrHeight;
-            resizedWidth = Math.round((maxWidthOrHeight * img.width) / img.height);
-          }
-        }
-  
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-  
-        canvas.width = resizedWidth;
-        canvas.height = resizedHeight;
-  
-        ctx.drawImage(img, 0, 0, resizedWidth, resizedHeight);
-  
-        const resizedDataURL = canvas.toDataURL('image/jpeg');
-  
-        setFormData(prevState => ({
-          ...prevState,
-          productphoto: resizedDataURL, // Updated to match the field name in the form state
-        }));
-      };
-    } catch (error) {
-      console.error('Error resizing image:', error);
-      toast.error('Error resizing image');
-    }
-  };
-  
-  const handleUploadProduct = async () => {
-    try {
-      const { name, description, category, price, productphoto } = formData;
-      if (!name || !description || !category || !price || !productphoto) {
-        toast.error('Please fill in all the fields');
-        return;
-      }
-  
-      const prefix = "2000";
-      const randomDigits = Math.floor(100000 + Math.random() * 900000);
-      const pid = prefix + randomDigits;
-  
-      const storeResponse = await axios.get(`https://alabites-api.vercel.app/store/query/${adminuid}`);
-      const storeId = storeResponse.data.data.storeId;
-  
-      const productData = {
-        pid: pid,
-        name: name,
-        description: description,
-        price: price,
-        category: category,
-        store: storeId,
-        productphoto: productphoto,
-      };
-  
-      console.log('Product Data:', productData);
-  
-      const response = await axios.post('https://alabites-api.vercel.app/products', productData, {
-        headers: {
-          'Content-Type': 'application/json'
-        }
+
+      await new Promise(resolve => {
+        img.onload = resolve;
       });
-  
-      if (response.status === 201) {
-        toast.success('Product uploaded successfully');
-        setShowModal(false);
-        setFormData({
-          name: '',
-          description: '',
-          price: '',
-          category: '',
-          productphoto: '', // Reset the product photo field as well
-        });
-      } else {
-        toast.error('Failed to upload product');
+
+      let resizedWidth = img.width;
+      let resizedHeight = img.height;
+
+      if (resizedWidth > maxWidthOrHeight || resizedHeight > maxWidthOrHeight) {
+        if (resizedWidth > resizedHeight) {
+          resizedWidth = maxWidthOrHeight;
+          resizedHeight = Math.round((maxWidthOrHeight * img.height) / img.width);
+        } else {
+          resizedHeight = maxWidthOrHeight;
+          resizedWidth = Math.round((maxWidthOrHeight * img.width) / img.height);
+        }
       }
-    } catch (error) {
-      console.error('Error uploading product:', error);
-      toast.error('Error uploading product');
+
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+
+      canvas.width = resizedWidth;
+      canvas.height = resizedHeight;
+
+      ctx.drawImage(img, 0, 0, resizedWidth, resizedHeight);
+
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'));
+
+      const storageRef = ref(storage, `product_photos/${uuidv4()}`);
+
+      const snapshot = await uploadBytes(storageRef, blob);
+
+      const downloadURL = await getDownloadURL(snapshot.ref);
+
+      photoURLs.push(downloadURL);
     }
-  };
+
+    setFormData(prevState => ({
+      ...prevState,
+      productPhotos: photoURLs,
+    }));
+  } catch (error) {
+    console.error('Error uploading image:', error);
+    toast.error('Error uploading image');
+  } finally {
+    setIsUploadingImages(false); // End image upload process
+  }
+};
+
+const handleUploadProduct = async () => {
+  try {
+    const { name, description, price, productPhotos, stock, tags, discount } = formData;
+
+    if (isUploadingImages || !name || !description || !price || !productPhotos.length || !stock || !tags || !discount) {
+      toast.error(isUploadingImages ? 'Please wait, images are being processed' : 'Please fill in all the fields');
+      return;
+    }
+
+    const prefix = "2000";
+    const randomDigits = Math.floor(100000 + Math.random() * 900000);
+    const pid = prefix + randomDigits;
+
+    const storeResponse = await axios.get(`https://alabites-api.vercel.app/store/query/${adminuid}`);
+    const storeId = storeResponse.data.data.storeId;
+
+    const productData = {
+      pid,
+      name,
+      description,
+      price,
+      store: storeId,
+      productPhotos,
+      stock,
+      tags,
+      discount,
+    };
+
+    const response = await axios.post('https://alabites-api.vercel.app/products', productData, {
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (response.status === 201) {
+      toast.success('Product uploaded successfully');
+      setShowModal(false);
+      setFormData({
+        name: '',
+        description: '',
+        price: '',
+        productPhotos: [],
+        stock: '',
+        tags: '',
+        discount: '',
+      });
+    } else {
+      toast.error('Failed to upload product');
+    }
+  } catch (error) {
+    console.error('Error uploading product:', error);
+    toast.error('Error uploading product');
+  }
+};
 
   const handleEditProduct = (product) => {
     try {
       console.log('Product data:', product);
       // Set the product data in editFormData state
       setEditingProduct(product);
-      setEditFormData({
-        pid: product._id,
+      setEditFormData({ 
+        _id: product._id,
+        pid: product.pid || product._id,
         name: product.name,
         description: product.description,
         price: product.price,
-        productphoto: product.productphoto,
-        createdAt: new Date(product.createdAt).toLocaleString(), // Convert createdAt to human-readable format
-        updatedAt: new Date(product.updatedAt).toLocaleString()  // Convert updatedAt to human-readable format  
+        productPhotos: product.productPhotos,
+        stock: product.stock || '', // Add stock field
+        tags: product.tags || '', // Add tags field
+        discount: product.discount || '', // Add discount field
+        createdAt: new Date(product.createdAt).toLocaleString(),
+        updatedAt: new Date(product.updatedAt).toLocaleString()
       });
       setShowUpdateModal(true);
     } catch (error) {
       console.error('Error setting product data:', error);
-      // Handle error (e.g., show error message)
       toast.error('Error setting product data');
     }
   };
-  
-  
-  const handleEditChange = (e) => {
-    const { name, value } = e.target;
+
+  const handleEditFileChange = (event) => {
+    const files = event.target.files;
+    // Hold onto the uploaded picture without uploading yet
     setEditFormData((prevFormData) => ({
       ...prevFormData,
-      [name]: value,
+      tempProductPhotos: files,
     }));
   };
-  
-  const handleEditFileChange = async (event) => {
-    const file = event.target.files[0];
-  
-    try {
-      const maxWidthOrHeight = 564; // Maximum width or height of the resized image
-  
-      const img = new Image();
-      img.src = URL.createObjectURL(file);
-  
-      img.onload = async () => {
-        console.log('Original image width:', img.width);
-        console.log('Original image height:', img.height);
-  
-        let resizedWidth = img.width;
-        let resizedHeight = img.height;
-  
-        if (resizedWidth > maxWidthOrHeight || resizedHeight > maxWidthOrHeight) {
-          if (resizedWidth > resizedHeight) {
-            resizedWidth = maxWidthOrHeight;
-            resizedHeight = Math.round((maxWidthOrHeight * img.height) / img.width);
-          } else {
-            resizedHeight = maxWidthOrHeight;
-            resizedWidth = Math.round((maxWidthOrHeight * img.width) / img.height);
-          }
-        }
-  
-        console.log('Resized image width:', resizedWidth);
-        console.log('Resized image height:', resizedHeight);
-  
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-  
-        canvas.width = resizedWidth;
-        canvas.height = resizedHeight;
-  
-        ctx.drawImage(img, 0, 0, resizedWidth, resizedHeight);
-  
-        const resizedDataURL = canvas.toDataURL('image/jpeg', 0.7);
-  
-        console.log('Resized image data URL:', resizedDataURL);
-  
-        setEditFormData(prevState => ({
-          ...prevState,
-          productphoto: resizedDataURL, // Updated to match the field name in the form state
-        }));
-      };
-    } catch (error) {
-      console.error('Error resizing image:', error);
-      toast.error('Error resizing image');
-    }
-  };
-  
-  
+
   const handleUpdateProduct = async () => {
     try {
-      console.log('editFormData:', editFormData); // Log editFormData state
-      const { pid, name, description, price, productphoto } = editFormData; // Extracting id from editFormData
-      if (!name || !description || !price) { // Ensure id is present
-        toast.error('Please fill in all the fields');
+      const { _id, name, description, price, stock, tags, discount, tempProductPhotos } = editFormData;
+  
+      if (isUploadingImages || !name || !description || !price || !tempProductPhotos || !stock || !tags || !discount) {
+        toast.error(isUploadingImages ? 'Please wait, images are being processed' : 'Please fill in all the fields');
         return;
       }
   
+      console.log('Uploading new photos...');
+      // Upload new photos
+      const photoURLs = [];
+      for (const file of tempProductPhotos) {
+        // Add your image uploading logic here
+        const storageRef = ref(storage, `product_photos/${uuidv4()}`);
+        const snapshot = await uploadBytes(storageRef, file);
+        const downloadURL = await getDownloadURL(snapshot.ref);
+        photoURLs.push(downloadURL);
+      }
+      console.log('New photos uploaded:', photoURLs);
+  
+      // Update editFormData with new photo URLs
+      setEditFormData((prevFormData) => ({
+        ...prevFormData,
+        productPhotos: photoURLs, // Assuming you'll replace the old product photos with the new ones
+      }));
+  
+      // Clear tempProductPhotos after uploading
+      setEditFormData((prevFormData) => ({
+        ...prevFormData,
+        tempProductPhotos: [],
+      }));
+  
+      // Prepare updated product data for API update
       const updatedProductData = {
-        name: name,
-        description: description,
-        price: price,
-        productphoto: productphoto,
+        name,
+        description,
+        price,
+        productPhotos: photoURLs, // Assigning the new photo URLs
+        stock,
+        tags,
+        discount,
       };
   
-      const response = await axios.put(`https://alabites-api.vercel.app/products/${pid}`, updatedProductData, {
+      console.log('Sending updated product data to the API:', updatedProductData);
+      // Send updated product data to the API
+      const response = await axios.put(`https://alabites-api.vercel.app/products/${_id}`, updatedProductData, {
         headers: {
-          'Content-Type': 'application/json'
-        }
+          'Content-Type': 'application/json',
+        },
       });
   
       if (response.status === 200) {
-        toast.success('Product updated successfully, refresh page to take effect');
+        toast.success('Product updated successfully');
         setShowUpdateModal(false);
         setEditingProduct(null);
       } else {
@@ -380,6 +389,7 @@ const JSIcon = (
       toast.error('Error updating product');
     }
   };
+  
   
   const handleDeleteProduct = async (productId) => {
     try {
@@ -523,91 +533,99 @@ return (
         </div>
   
         <div className="flex justify-center items-center py-20">
-          <div className="md:px-4 md:grid md:grid-cols-2 lg:grid-cols-3 gap-5 space-y-4 md:space-y-0">
-            {filteredProducts.map((product, index) => (
-              <div key={index} className="max-w-sm bg-white px-6 pt-6 pb-2 rounded-xl shadow-lg transform hover:scale-105 transition duration-500">
-                <div className="relative">
-                  <img className="w-full rounded-xl" src={product.productphoto} alt={product.name} />
-                  <p className="absolute top-0 bg-yellow-300 text-gray-800 font-semibold py-1 px-3 rounded-br-lg rounded-tl-lg">Php{product.price}</p>
-                </div>
-                <h1 className="mt-4 text-gray-800 text-2xl font-bold cursor-pointer">{product.name}</h1>
-                <p className="text-gray-600 mt-2">{product.description}</p>
-                <div className="my-4">
-                  <div className="flex space-x-1 items-center">
-                    {PartsIcon}
-                    <p>{product.category}</p>
-                  </div>
-                  <div className="flex space-x-1 items-center">
-                    {ClockIcon}
-                    <p>{product.createdAt}</p>
-                  </div>
-                  <div className="flex space-x-1 items-center">
-                    {ClockIcon}
-                    <p>{product.updatedAt}</p>
-                  </div>
-                  <button onClick={() => handleEditProduct(product)} className="mt-4 text-xl w-full text-white bg-indigo-600 py-2 rounded-xl shadow-lg">Edit Product</button>
-                  <button onClick={() => handleDeleteProduct(product._id)} className="mt-4 text-xl w-full text-white bg-red-600 py-2 rounded-xl shadow-lg">Delete Product</button>
-                </div>
-              </div>
-            ))}
-          </div>
+  <div className="md:px-4 md:grid md:grid-cols-2 lg:grid-cols-3 gap-5 space-y-4 md:space-y-0">
+    {filteredProducts.map((product, index) => (
+      <div key={index} className="max-w-sm bg-white px-6 pt-6 pb-2 rounded-xl shadow-lg transform hover:scale-105 transition duration-500">
+        <div className="relative">
+          <img className="w-full rounded-xl" src={product.productPhotos.length > 0 ? product.productPhotos[0] : 'default-placeholder-image.jpg'} alt={product.name} />
+          <p className="absolute top-0 bg-yellow-300 text-gray-800 font-semibold py-1 px-3 rounded-br-lg rounded-tl-lg">Php{product.price}</p>
         </div>
+        <h1 className="mt-4 text-gray-800 text-2xl font-bold cursor-pointer">{product.name}</h1>
+        <p className="text-gray-600 mt-2">{product.description}</p>
+        <div className="my-4">
+          <div className="flex space-x-1 items-center">
+            {PartsIcon}
+            <p>{product.category}</p>
+          </div>
+          <div className="flex space-x-1 items-center">
+            {ClockIcon}
+            <p>Created: {product.createdAt}</p>
+          </div>
+          <div className="flex space-x-1 items-center">
+            {ClockIcon}
+            <p>Last Updated: {product.updatedAt}</p>
+          </div>
+          <button onClick={() => handleEditProduct(product)} className="mt-4 text-xl w-full text-white bg-indigo-600 py-2 rounded-xl shadow-lg">Edit Product</button>
+          <button onClick={() => handleDeleteProduct(product._id)} className="mt-4 text-xl w-full text-white bg-red-600 py-2 rounded-xl shadow-lg">Delete Product</button>
+        </div>
+      </div>
+    ))}
+  </div>
+</div>
 
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed z-10 inset-0 overflow-y-auto">
-          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+    <div className="fixed z-10 inset-0 overflow-y-auto">
+        <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+                <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
             </div>
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
             <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <div className="sm:flex sm:items-start">
-                  <div className="mt-3 text-center sm:mt-0 sm:text-left">
-                    <h3 className="text-lg font-medium leading-6 text-gray-900" id="modal-title">
-                      Create Product
-                    </h3>
-                    <div className="mt-2">
-                      <form>
-                        <div className="mb-4">
-                          <label htmlFor="name" className="block text-gray-700 text-sm font-bold mb-2">Product Name:</label>
-                          <input type="text" id="name" name="name" value={formData.name} onChange={handleChange} className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
+                <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <div className="sm:flex sm:items-start">
+                        <div className="mt-3 text-center sm:mt-0 sm:text-left">
+                            <h3 className="text-lg font-medium leading-6 text-gray-900" id="modal-title">
+                                Create Product
+                            </h3>
+                            <div className="mt-2">
+                                <form>
+                                    <div className="mb-4">
+                                        <label htmlFor="name" className="block text-gray-700 text-sm font-bold mb-2">Product Name:</label>
+                                        <input type="text" id="name" name="name" value={formData.name} onChange={handleChange} className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
+                                    </div>
+                                    <div className="mb-4">
+                                        <label htmlFor="description" className="block text-gray-700 text-sm font-bold mb-2">Product Description:</label>
+                                        <textarea id="description" name="description" value={formData.description} onChange={handleChange} className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
+                                    </div>
+                                    <div className="mb-4">
+                                        <label htmlFor="price" className="block text-gray-700 text-sm font-bold mb-2">Product Price:</label>
+                                        <input type="number" id="price" name="price" value={formData.price} onChange={handleChange} className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
+                                    </div>
+                                    <div className="mb-4">
+                                        <label htmlFor="stock" className="block text-gray-700 text-sm font-bold mb-2">Stock:</label>
+                                        <input type="number" id="stock" name="stock" value={formData.stock} onChange={handleChange} className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
+                                    </div>
+                                    <div className="mb-4">
+                                        <label htmlFor="tags" className="block text-gray-700 text-sm font-bold mb-2">Tags (comma-separated):</label>
+                                        <input type="text" id="tags" name="tags" value={formData.tags} onChange={handleChange} className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
+                                    </div>
+                                    <div className="mb-4">
+                                        <label htmlFor="discount" className="block text-gray-700 text-sm font-bold mb-2">Discount (%):</label>
+                                        <input type="number" id="discount" name="discount" value={formData.discount} onChange={handleChange} className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
+                                    </div>
+                                    <div className="mb-4">
+                                        <label htmlFor="productphoto" className="block text-gray-700 text-sm font-bold mb-2">Product Photos:</label>
+                                        <input type="file" id="productphotos" name="productphotos" onChange={handleFileChange} required accept="image/*" multiple className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
+                                    </div>
+                                </form>
+                            </div>
                         </div>
-                        <div className="mb-4">
-                          <label htmlFor="description" className="block text-gray-700 text-sm font-bold mb-2">Product Description:</label>
-                          <textarea id="description" name="description" value={formData.description} onChange={handleChange} className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
-                        </div>
-                        <div className="mb-4">
-                          <label htmlFor="category" className="block text-gray-700 text-sm font-bold mb-2">Product Category:</label>
-                          <input type="text" id="category" name="category" value={formData.category} onChange={handleChange} className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
-                        </div>
-                        <div className="mb-4">
-                          <label htmlFor="price" className="block text-gray-700 text-sm font-bold mb-2">Product Price:</label>
-                          <input type="number" id="price" name="price" value={formData.price} onChange={handleChange} className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
-                        </div>
-                        <div className="mb-4">
-                          <label htmlFor="productphoto" className="block text-gray-700 text-sm font-bold mb-2">Product Photo:</label>
-                          <input type="file" id="productphoto" name="productphoto" onChange={handleFileChange} required accept="image/*" className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
-                        </div>
-                      </form>
                     </div>
-                  </div>
                 </div>
-              </div>
-              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                <button onClick={handleUploadProduct} className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm">
-                  Upload Product
-                </button>
-                <button onClick={handleCloseModal} className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
-                  Cancel
-                </button>
-              </div>
+                <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+          <button onClick={handleUploadProduct} disabled={isUploadingImages} className={`w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm ${isUploadingImages ? 'cursor-not-allowed opacity-50' : ''}`}>
+            {isUploadingImages ? 'Processing images...' : 'Upload Product'}
+          </button>
+          <button onClick={handleCloseModal} className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+            Cancel
+          </button>
+                </div>
             </div>
-          </div>
         </div>
-      )}
+    </div>
+)}
 
 {showUpdateModal && (
   <div className="fixed z-10 inset-0 overflow-y-auto">
@@ -625,7 +643,6 @@ return (
               </h3>
               <div className="mt-2">
                 <form>
-
                   <div className="mb-4">
                     <label htmlFor="edit-name" className="block text-gray-700 text-sm font-bold mb-2">Product Name:</label>
                     <input type="text" id="edit-name" name="name" value={editFormData.name} onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })} className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
@@ -637,6 +654,18 @@ return (
                   <div className="mb-4">
                     <label htmlFor="edit-price" className="block text-gray-700 text-sm font-bold mb-2">Product Price:</label>
                     <input type="number" id="edit-price" name="price" value={editFormData.price} onChange={(e) => setEditFormData({ ...editFormData, price: e.target.value })} className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
+                  </div>
+                  <div className="mb-4">
+                    <label htmlFor="edit-stock" className="block text-gray-700 text-sm font-bold mb-2">Stock:</label>
+                    <input type="number" id="edit-stock" name="stock" value={editFormData.stock} onChange={(e) => setEditFormData({ ...editFormData, stock: e.target.value })} className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
+                  </div>
+                  <div className="mb-4">
+                    <label htmlFor="edit-tags" className="block text-gray-700 text-sm font-bold mb-2">Tags:</label>
+                    <input type="text" id="edit-tags" name="tags" value={editFormData.tags} onChange={(e) => setEditFormData({ ...editFormData, tags: e.target.value })} className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
+                  </div>
+                  <div className="mb-4">
+                    <label htmlFor="edit-discount" className="block text-gray-700 text-sm font-bold mb-2">Discount:</label>
+                    <input type="number" id="edit-discount" name="discount" value={editFormData.discount} onChange={(e) => setEditFormData({ ...editFormData, discount: e.target.value })} className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
                   </div>
                   <div className="mb-4">
                     <label htmlFor="edit-productphoto" className="block text-gray-700 text-sm font-bold mb-2">Product Photo:</label>
