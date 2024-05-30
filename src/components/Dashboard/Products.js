@@ -13,6 +13,8 @@ const ProductListPage = () => {
   const [products, setProducts] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [feedbackMessage, setFeedbackMessage] = useState('');
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [filteredProducts, setFilteredProducts] = useState(products);
   const [minPrice, setMinPrice] = useState('');
@@ -291,104 +293,141 @@ const handleUploadProduct = async () => {
   }
 };
 
-  const handleEditProduct = (product) => {
-    try {
-      console.log('Product data:', product);
-      // Set the product data in editFormData state
-      setEditingProduct(product);
-      setEditFormData({ 
-        _id: product._id,
-        pid: product.pid || product._id,
-        name: product.name,
-        description: product.description,
-        price: product.price,
-        productPhotos: product.productPhotos,
-        stock: product.stock || '', // Add stock field
-        tags: product.tags || '', // Add tags field
-        discount: product.discount || '', // Add discount field
-        createdAt: new Date(product.createdAt).toLocaleString(),
-        updatedAt: new Date(product.updatedAt).toLocaleString()
-      });
-      setShowUpdateModal(true);
-    } catch (error) {
-      console.error('Error setting product data:', error);
-      toast.error('Error setting product data');
-    }
-  };
+const handleEditProduct = (product) => {
+  try {
+    console.log('Product data:', product);
+    // Set the product data in editFormData state
+    setEditingProduct(product);
+    setEditFormData({ 
+      _id: product._id,
+      pid: product.pid || product._id,
+      name: product.name,
+      description: product.description,
+      price: product.price,
+      productPhotos: product.productPhotos,
+      stock: product.stock || '', // Add stock field
+      tags: product.tags || '', // Add tags field
+      discount: product.discount || '', // Add discount field
+      createdAt: new Date(product.createdAt).toLocaleString(),
+      updatedAt: new Date(product.updatedAt).toLocaleString()
+    });
+    setShowUpdateModal(true);
+  } catch (error) {
+    console.error('Error setting product data:', error);
+    toast.error('Error setting product data');
+  }
+};
 
-  const handleEditFileChange = (event) => {
-    const files = event.target.files;
-    // Hold onto the uploaded picture without uploading yet
+const handleEditFileChange = (event) => {
+  const files = Array.from(event.target.files);
+  setEditFormData((prevFormData) => ({
+    ...prevFormData,
+    tempProductPhotos: prevFormData.tempProductPhotos ? prevFormData.tempProductPhotos.concat(files) : files,
+  }));
+};
+
+const handleUpdateProduct = async () => {
+  try {
+    const { _id, name, description, price, stock, tags, discount, tempProductPhotos, productPhotos } = editFormData;
+
+    if (isUploadingImages || !name || !description || !price || !stock || !tags || !discount) {
+      toast.error(isUploadingImages ? 'Please wait, images are being processed' : 'Please fill in all the fields');
+      return;
+    }
+
+    setIsLoading(true);
+    setFeedbackMessage('Uploading new photos...');
+    
+    // Upload new photos
+    const photoURLs = [...productPhotos];
+    for (const file of tempProductPhotos) {
+      if (photoURLs.length >= 6) {
+        toast.error('A maximum of 6 photos is allowed');
+        break;
+      }
+      const storageRef = ref(storage, `product_photos/${uuidv4()}`);
+      const snapshot = await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(snapshot.ref);
+      photoURLs.push(downloadURL);
+    }
+    console.log('New photos uploaded:', photoURLs);
+
+    // Clear tempProductPhotos after uploading
     setEditFormData((prevFormData) => ({
       ...prevFormData,
-      tempProductPhotos: files,
+      tempProductPhotos: [],
+      productPhotos: photoURLs, // Combine existing and new photos
     }));
-  };
 
-  const handleUpdateProduct = async () => {
+    // Prepare updated product data for API update
+    const updatedProductData = {
+      name,
+      description,
+      price,
+      productPhotos: photoURLs, // Assigning the combined photo URLs
+      stock,
+      tags,
+      discount,
+    };
+
+    setFeedbackMessage('Updating product data...');
+    console.log('Sending updated product data to the API:', updatedProductData);
+    // Send updated product data to the API
+    const response = await axios.put(`https://alabites-api.vercel.app/products/${_id}`, updatedProductData, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (response.status === 200) {
+      toast.success('Product updated successfully');
+      setShowUpdateModal(false);
+      setEditingProduct(null);
+    } else {
+      toast.error('Failed to update product');
+    }
+  } catch (error) {
+    console.error('Error updating product:', error);
+    toast.error('Error updating product');
+  } finally {
+    setIsLoading(false);
+    setFeedbackMessage('');
+  }
+};
+
+const handleDeletePhoto = async (photo) => {
+  const confirmed = window.confirm('Are you sure you want to delete this photo? This action is irreversible.');
+  if (confirmed) {
     try {
-      const { _id, name, description, price, stock, tags, discount, tempProductPhotos } = editFormData;
-  
-      if (isUploadingImages || !name || !description || !price || !tempProductPhotos || !stock || !tags || !discount) {
-        toast.error(isUploadingImages ? 'Please wait, images are being processed' : 'Please fill in all the fields');
-        return;
-      }
-  
-      console.log('Uploading new photos...');
-      // Upload new photos
-      const photoURLs = [];
-      for (const file of tempProductPhotos) {
-        // Add your image uploading logic here
-        const storageRef = ref(storage, `product_photos/${uuidv4()}`);
-        const snapshot = await uploadBytes(storageRef, file);
-        const downloadURL = await getDownloadURL(snapshot.ref);
-        photoURLs.push(downloadURL);
-      }
-      console.log('New photos uploaded:', photoURLs);
-  
-      // Update editFormData with new photo URLs
+      // Delete photo from Firebase Storage
+      const photoRef = ref(storage, photo);
+      await deleteObject(photoRef);
+      
+      // Update local state
       setEditFormData((prevFormData) => ({
         ...prevFormData,
-        productPhotos: photoURLs, // Assuming you'll replace the old product photos with the new ones
+        productPhotos: prevFormData.productPhotos.filter((p) => p !== photo),
       }));
-  
-      // Clear tempProductPhotos after uploading
-      setEditFormData((prevFormData) => ({
-        ...prevFormData,
-        tempProductPhotos: [],
-      }));
-  
-      // Prepare updated product data for API update
+
+      // Optionally, update the product in the backend to reflect the removed photo
       const updatedProductData = {
-        name,
-        description,
-        price,
-        productPhotos: photoURLs, // Assigning the new photo URLs
-        stock,
-        tags,
-        discount,
+        ...editFormData,
+        productPhotos: editFormData.productPhotos.filter((p) => p !== photo),
       };
-  
-      console.log('Sending updated product data to the API:', updatedProductData);
-      // Send updated product data to the API
-      const response = await axios.put(`https://alabites-api.vercel.app/products/${_id}`, updatedProductData, {
+
+      await axios.put(`https://alabites-api.vercel.app/products/${editFormData._id}`, updatedProductData, {
         headers: {
           'Content-Type': 'application/json',
         },
       });
-  
-      if (response.status === 200) {
-        toast.success('Product updated successfully');
-        setShowUpdateModal(false);
-        setEditingProduct(null);
-      } else {
-        toast.error('Failed to update product');
-      }
+
+      toast.success('Photo deleted successfully');
     } catch (error) {
-      console.error('Error updating product:', error);
-      toast.error('Error updating product');
+      console.error('Error deleting photo:', error);
+      toast.error('Error deleting photo');
     }
-  };
+  }
+};
   
   
   const handleDeleteProduct = async (productId) => {
@@ -667,9 +706,22 @@ return (
                     <label htmlFor="edit-discount" className="block text-gray-700 text-sm font-bold mb-2">Discount:</label>
                     <input type="number" id="edit-discount" name="discount" value={editFormData.discount} onChange={(e) => setEditFormData({ ...editFormData, discount: e.target.value })} className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
                   </div>
+                                    <div className="mb-4">
+                    <label className="block text-gray-700 text-sm font-bold mb-2">Product Photos:</label>
+                    <div className="grid grid-cols-3 gap-4">
+                      {editFormData.productPhotos.map((photo, index) => (
+                        <div key={index} className="relative">
+                          <img src={photo} alt={`Product ${index + 1}`} className="w-full h-24 object-cover rounded" />
+                          <button type="button" onClick={() => handleDeletePhoto(photo)} className="absolute top-0 right-0 bg-red-600 text-white text-xs rounded-full p-1 focus:outline-none">
+                            &times;
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                   <div className="mb-4">
-                    <label htmlFor="edit-productphoto" className="block text-gray-700 text-sm font-bold mb-2">Product Photo:</label>
-                    <input type="file" id="edit-productphoto" name="productphoto" onChange={handleEditFileChange} required accept="image/*" className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
+                    <label htmlFor="edit-productphoto" className="block text-gray-700 text-sm font-bold mb-2">Add New Product Photo:</label>
+                    <input type="file" id="edit-productphoto" name="productphoto" onChange={handleEditFileChange} multiple accept="image/*" className="appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
                   </div>
                 </form>
               </div>
@@ -677,12 +729,19 @@ return (
           </div>
         </div>
         <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-          <button onClick={handleUpdateProduct} className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm">
-            Update Product
-          </button>
-          <button onClick={() => setShowUpdateModal(false)} className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
-            Cancel
-          </button>
+            <button
+              onClick={handleUpdateProduct}
+              className={`w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 ${isLoading ? 'bg-blue-300' : 'bg-blue-600'} text-base font-medium text-white ${isLoading ? '' : 'hover:bg-blue-700'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm`}
+              disabled={isLoading}
+            >
+              {isLoading ? 'Updating...' : 'Update Product'}
+            </button>
+            <button
+              onClick={() => setShowUpdateModal(false)}
+              className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+            >
+              Cancel
+            </button>
         </div>
       </div>
     </div>
