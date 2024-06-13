@@ -6,6 +6,7 @@ import AdminDashboard from './components/Dashboard/AdminDashboard'; // Import Ad
 import StoreForm from './components/Dashboard/StoreForm'; 
 import ProfilePage from './components/Dashboard/Profile';
 import ProductListPage from './components/Dashboard/Products';
+import AddTamCredits from './components/overseer/addtamcredits'; // Import AddTamCredits component
 import './App.css';
 
 function App() {
@@ -21,6 +22,7 @@ function App() {
           <Route path="/create-store-form" element={<StoreForm />} /> {/* Route for StoreForm */}
           <Route path="/profile" element={<ProfilePage />} /> {/* Route for ProfilePage */}
           <Route path="/products" element={<ProductListPage />} /> {/* Route for ProductListPage */}
+          <Route path="/add-tam-credits" element={<AddTamCredits />} /> {/* Route for AddTamCredits */}
         </Routes>
       </div>
     </Router>
