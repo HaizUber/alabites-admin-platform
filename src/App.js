@@ -6,7 +6,7 @@ import Register from './components/Auth/Register';
 import AdminDashboard from './components/Dashboard/AdminDashboard';
 import StoreForm from './components/Dashboard/StoreForm';
 import ProfilePage from './components/Dashboard/Profile';
-import ProductListPage from './components/Dashboard/Products';
+import ProductListPage from './components/Dashboard/ProductsListPage';
 import AddTamCredits from './components/overseer/addtamcredits';
 import OrdersComponent from './components/Dashboard/Orders';
 import HorizontalMenu from './components/Dashboard/HorizontalMenu';
@@ -69,7 +69,7 @@ function App() {
             <Route path="/register" element={<Register />} />
             <Route path="/dashboard" element={<AdminDashboard />} />
             <Route path="/create-store-form" element={<StoreForm />} />
-            <Route path="/profile" element={<ProfilePage isCollapsed={isVerticalMenuCollapsed} toggleMenu={toggleMenu} />} />
+            <Route path="/profile" element={<ProfilePage isCollapsed={isVerticalMenuCollapsed} toggleMenu={toggleMenu} adminInfo={adminInfo} />} />
             <Route path="/products" element={<ProductListPage isCollapsed={isVerticalMenuCollapsed} toggleMenu={toggleMenu} />} />
             <Route path="/add-tam-credits" element={<AddTamCredits />} />
             <Route path="/orders" element={<OrdersComponent />} />

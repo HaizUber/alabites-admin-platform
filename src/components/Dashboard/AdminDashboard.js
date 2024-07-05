@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { auth } from '../../config/firebase';
-import VerticalMenu from './VerticalMenu';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { useNavigate } from 'react-router-dom';
@@ -108,24 +107,15 @@ const AdminDashboard = () => {
         const ordersData = await ordersRes.json();
         const reviewsData = await reviewsRes.json();
   
-        console.log('Products data:', productsData);
-        console.log('Orders data:', ordersData);
-        console.log('Reviews data:', reviewsData);
-  
         // Filter products, orders, and reviews specific to the admin's store
         const storeProducts = productsData.data.filter(product => product.store === adminInfo.storeId);
         console.log('Store products:', storeProducts);
   
         const storeOrders = ordersData.filter(order => {
-          console.log('Order store:', order.store);
-          console.log('Admin storeId:', adminInfo.storeId);
-          console.log('Order status:', order.orderStatus);
           return order.store === adminInfo.storeId && order.orderStatus === 'Completed';
         });
-        console.log('Store orders:', storeOrders);
   
         const storeReviews = reviewsData.filter(review => storeProducts.some(product => product._id === review.product));
-        console.log('Store reviews:', storeReviews);
   
         // Update state with fetched data
         const productsSold = storeOrders.reduce((acc, order) => acc + order.items.reduce((sum, item) => sum + item.quantity, 0), 0);

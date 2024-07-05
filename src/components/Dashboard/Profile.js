@@ -198,17 +198,6 @@ const ProfilePage = ({ isCollapsed, toggleMenu }) => {
           <Heading as="h3" size="md" mb={2}>About Me</Heading>
           <Text>{aboutMe}</Text>
         </Box>
-        <Box mt={6} textAlign="center">
-          <Text fontSize="md" mb={2}>Follow me on</Text>
-          <Box display="flex" justifyContent="center">
-            <Button colorScheme="twitter" leftIcon={<i className="fab fa-twitter" />}>
-              UID: {adminInfo.uid}
-            </Button>
-            <Button colorScheme="facebook" leftIcon={<i className="fab fa-facebook-f" />} ml={2}>
-              Email: {adminInfo.email}
-            </Button>
-          </Box>
-        </Box>
       </Box>
       <Modal isOpen={isOpen} onClose={onClose}>
         <ModalOverlay />
