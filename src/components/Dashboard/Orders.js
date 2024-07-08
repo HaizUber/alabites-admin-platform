@@ -31,6 +31,8 @@ const OrdersComponent = ({ handleOrderStatusChange }) => {
   const [uid, setUid] = useState(null);
   const [storeId, setStoreId] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [isMarkingComplete, setIsMarkingComplete] = useState(false);
+  const [isCancellingOrder, setIsCancellingOrder] = useState(false);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const toast = useToast();
 
@@ -41,6 +43,11 @@ const OrdersComponent = ({ handleOrderStatusChange }) => {
   const [filterOrderStatus, setFilterOrderStatus] = useState('');
   const [filterMinPrice, setFilterMinPrice] = useState('');
   const [filterMaxPrice, setFilterMaxPrice] = useState('');
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const ordersPerPage = 15; // Number of orders to display per page
+  const maxVisiblePages = 5; // Maximum number of pages to show directly
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(user => {
@@ -124,11 +131,28 @@ const OrdersComponent = ({ handleOrderStatusChange }) => {
         return pass;
       });
 
+      // Sort orders: Pending > Completed > Cancelled
+      filtered = filtered.sort((a, b) => {
+        if (a.orderStatus === 'Pending' && b.orderStatus !== 'Pending') return -1;
+        if (a.orderStatus !== 'Pending' && b.orderStatus === 'Pending') return 1;
+        if (a.orderStatus === 'Completed' && b.orderStatus !== 'Completed') return -1;
+        if (a.orderStatus !== 'Completed' && b.orderStatus === 'Completed') return 1;
+        return 0;
+      });
+
       setFilteredOrders(filtered);
     };
 
     applyFilters();
   }, [filterOrderNumber, filterCustomerName, filterEmail, filterOrderStatus, filterMinPrice, filterMaxPrice, orders]);
+
+  // Pagination logic
+  const indexOfLastOrder = currentPage * ordersPerPage;
+  const indexOfFirstOrder = indexOfLastOrder - ordersPerPage;
+  const currentOrders = filteredOrders.slice(indexOfFirstOrder, indexOfLastOrder);
+
+  // Change page
+  const paginate = pageNumber => setCurrentPage(pageNumber);
 
   const handleViewDetails = order => {
     setSelectedOrder(order);
@@ -141,18 +165,27 @@ const OrdersComponent = ({ handleOrderStatusChange }) => {
   };
 
   const handleStatusChange = async (order, status) => {
+    if (status === 'Completed') {
+      setIsMarkingComplete(true);
+    } else if (status === 'Cancelled') {
+      setIsCancellingOrder(true);
+    }
+  
     try {
       const response = await axios.patch(`https://alabites-api.vercel.app/orders/${order._id}/status`, {
         orderStatus: status,
       });
+  
       if (response.status === 200) {
         const updatedOrder = { ...order, orderStatus: status };
+  
         setOrders(prevOrders =>
           prevOrders.map(o => (o._id === order._id ? updatedOrder : o))
         );
         setFilteredOrders(prevOrders =>
           prevOrders.map(o => (o._id === order._id ? updatedOrder : o))
         );
+  
         toast({
           title: 'Success',
           description: `Order status updated to ${status}.`,
@@ -160,6 +193,8 @@ const OrdersComponent = ({ handleOrderStatusChange }) => {
           duration: 3000,
           isClosable: true,
         });
+      } else {
+        throw new Error('Failed to update order status');
       }
     } catch (error) {
       console.error('Error updating order status:', error);
@@ -171,10 +206,17 @@ const OrdersComponent = ({ handleOrderStatusChange }) => {
         isClosable: true,
       });
     } finally {
+      if (status === 'Completed') {
+        setIsMarkingComplete(false);
+      } else if (status === 'Cancelled') {
+        setIsCancellingOrder(false);
+      }
+  
       setSelectedOrder(null);
       onClose();
     }
   };
+  
 
   const getOrderStatusColor = status => {
     switch (status) {
@@ -191,87 +233,84 @@ const OrdersComponent = ({ handleOrderStatusChange }) => {
   };
 
   return (
-    <Box p={4} display="flex" flexDirection={{ base: 'column', md: 'row' }}>
-      <Box flex="1" mt={{ base: 4, md: 0 }} p={4}>
+    <Box p={4} display="flex" flexDirection={{ base: 'column', md: 'row' }} overflowX="auto" maxWidth="100%">
+      <Box flex="1" mt={{ base: 4, md: 0 }} p={4} minWidth={0}>
         {/* Filters Box */}
         <Box mb={4} p={4} bg="gray.100" borderRadius="md">
           <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
             <Input
               placeholder="Order Number"
               value={filterOrderNumber}
-              onChange={e => setFilterOrderNumber(e.target.value)}
+              onChange={(e) => setFilterOrderNumber(e.target.value)}
             />
             <Input
               placeholder="Customer Name"
               value={filterCustomerName}
-              onChange={e => setFilterCustomerName(e.target.value)}
+              onChange={(e) => setFilterCustomerName(e.target.value)}
             />
             <Input
               placeholder="Email"
               value={filterEmail}
-              onChange={e => setFilterEmail(e.target.value)}
+              onChange={(e) => setFilterEmail(e.target.value)}
             />
             <Select
               placeholder="Order Status"
               value={filterOrderStatus}
-              onChange={e => setFilterOrderStatus(e.target.value)}
+              onChange={(e) => setFilterOrderStatus(e.target.value)}
             >
               <option value="Pending">Pending</option>
               <option value="Completed">Completed</option>
               <option value="Cancelled">Cancelled</option>
+              <option value="Refunded">Refunded</option>
             </Select>
             <Input
-              type="number"
               placeholder="Min Price"
+              type="number"
               value={filterMinPrice}
-              onChange={e => setFilterMinPrice(e.target.value)}
+              onChange={(e) => setFilterMinPrice(e.target.value)}
             />
             <Input
-              type="number"
               placeholder="Max Price"
+              type="number"
               value={filterMaxPrice}
-              onChange={e => setFilterMaxPrice(e.target.value)}
+              onChange={(e) => setFilterMaxPrice(e.target.value)}
             />
           </SimpleGrid>
         </Box>
-
         {/* Orders Table */}
-        <Box bg="white" borderRadius="md" boxShadow="md" mt={4}>
-          <Table variant="simple" size={{ base: 'sm', md: 'md' }}>
+        <Box overflowX="auto">
+          <Table variant="simple">
             <Thead>
               <Tr>
                 <Th>Order Number</Th>
                 <Th>Customer Name</Th>
+                <Th>Email</Th>
                 <Th>Order Status</Th>
-                <Th>Total Amount (PHP)</Th>
-                <Th>Actions</Th>
+                <Th>Total Amount</Th>
+                <Th>Action</Th>
               </Tr>
             </Thead>
             <Tbody>
-              {filteredOrders.map(order => (
-                <Tr
-                  key={order._id}
-                  as={motion.tr}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                >
+              {currentOrders.map(order => (
+                <Tr key={order._id}>
                   <Td>{order.orderNumber}</Td>
                   <Td>{order.customer.name}</Td>
+                  <Td>{order.customer.email}</Td>
                   <Td>
                     <Box
                       px={2}
                       py={1}
-                      rounded="md"
+                      borderRadius="md"
                       bg={getOrderStatusColor(order.orderStatus).bg}
                       color={getOrderStatusColor(order.orderStatus).color}
-                      display="inline-block"
+                      textAlign="center"
                     >
                       {order.orderStatus}
                     </Box>
                   </Td>
-                  <Td>{order.totalAmount}</Td>
+                  <Td>₱{order.totalAmount.toFixed(2)}</Td>
                   <Td>
-                    <Button colorScheme="blue" onClick={() => handleViewDetails(order)}>
+                    <Button size="sm" onClick={() => handleViewDetails(order)}>
                       View Details
                     </Button>
                   </Td>
@@ -280,53 +319,109 @@ const OrdersComponent = ({ handleOrderStatusChange }) => {
             </Tbody>
           </Table>
         </Box>
-
-        {/* Order Details Modal */}
-        {selectedOrder && (
-          <Modal isOpen={isOpen} onClose={handleCloseDetails}>
-            <ModalOverlay />
-            <ModalContent as={motion.div} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <ModalHeader>Order Details - {selectedOrder.orderNumber}</ModalHeader>
-              <ModalCloseButton />
-              <ModalBody>
-                <p>Customer Name: {selectedOrder.customer.name}</p>
-                <p>Customer Email: {selectedOrder.customer.email}</p>
-                <p>Total Amount: {selectedOrder.totalAmount}</p>
-                <p>Order Status: {selectedOrder.orderStatus}</p>
-                <p>Payment Method: {selectedOrder.paymentDetails.method}</p>
-                <p>Transaction ID: {selectedOrder.paymentDetails.transactionId}</p>
-                <p>Items:</p>
-                <ul>
-                  {selectedOrder.items.map((item, index) => (
-                    <li key={index}>
-                      {item.name} - Quantity: {item.quantity} - Price: {item.price}
-                    </li>
-                  ))}
-                </ul>
-              </ModalBody>
-              <ModalFooter>
-                {selectedOrder.orderStatus === 'Pending' && (
-                  <>
-                    <Button
-                      colorScheme="green"
-                      onClick={() => handleStatusChange(selectedOrder, 'Completed')}
-                    >
-                      Mark as Completed
-                    </Button>
-                    <Button
-                      colorScheme="red"
-                      onClick={() => handleStatusChange(selectedOrder, 'Cancelled')}
-                    >
-                      Cancel Order
-                    </Button>
-                  </>
-                )}
-                <Button onClick={handleCloseDetails}>Close</Button>
-              </ModalFooter>
-            </ModalContent>
-          </Modal>
-        )}
+        {/* Pagination */}
+        <Box mt={4} display="flex" justifyContent="center">
+          {Array(Math.ceil(filteredOrders.length / ordersPerPage))
+            .fill()
+            .map((_, i) => (
+              <Button
+                key={i + 1}
+                size="sm"
+                onClick={() => paginate(i + 1)}
+                isActive={i + 1 === currentPage}
+                mx={1}
+              >
+                {i + 1}
+              </Button>
+            ))}
+        </Box>
       </Box>
+
+{/* Order Details Modal */}
+<Modal isOpen={isOpen} onClose={handleCloseDetails}>
+  <ModalOverlay />
+  <ModalContent>
+    <ModalHeader>Order Details</ModalHeader>
+    <ModalCloseButton />
+    <ModalBody>
+      {selectedOrder && (
+        <Box>
+          <Box mb={4}>
+            <strong>Order Number:</strong> {selectedOrder.orderNumber}
+          </Box>
+          <Box mb={4}>
+            <strong>Customer Name:</strong> {selectedOrder.customer.name}
+          </Box>
+          <Box mb={4}>
+            <strong>Email:</strong> {selectedOrder.customer.email}
+          </Box>
+          <Box mb={4}>
+            <strong>Order Status:</strong>{' '}
+            <Box
+              display="inline-block"
+              px={2}
+              py={1}
+              borderRadius="md"
+              bg={getOrderStatusColor(selectedOrder.orderStatus).bg}
+              color={getOrderStatusColor(selectedOrder.orderStatus).color}
+            >
+              {selectedOrder.orderStatus}
+            </Box>
+          </Box>
+          <Box mb={4}>
+            <strong>Total Amount:</strong> ₱{selectedOrder.totalAmount.toFixed(2)}
+          </Box>
+          <Box mb={4}>
+            <strong>Items:</strong>
+            <Table variant="simple" mt={2}>
+              <Thead>
+                <Tr>
+                  <Th>Product</Th>
+                  <Th>Quantity</Th>
+                  <Th>Price</Th>
+                </Tr>
+              </Thead>
+              <Tbody>
+                {selectedOrder.items.map(item => (
+                  <Tr key={item.productId}>
+                    <Td>{item.name}</Td> {/* Ensure you're accessing product name correctly */}
+                    <Td>{item.quantity}</Td>
+                    <Td>₱{item.price.toFixed(2)}</Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          </Box>
+        </Box>
+      )}
+    </ModalBody>
+    <ModalFooter>
+      {selectedOrder && selectedOrder.orderStatus === 'Pending' && (
+        <>
+          <Button
+            colorScheme="green"
+            mr={3}
+            onClick={() => handleStatusChange(selectedOrder, 'Completed')}
+            isLoading={isMarkingComplete}
+            loadingText="Marking as Complete"
+          >
+            Mark as Complete
+          </Button>
+          <Button
+            colorScheme="red"
+            onClick={() => handleStatusChange(selectedOrder, 'Cancelled')}
+            isLoading={isCancellingOrder}
+            loadingText="Cancelling Order"
+          >
+            Cancel Order
+          </Button>
+        </>
+      )}
+      <Button onClick={handleCloseDetails}>Close</Button>
+    </ModalFooter>
+  </ModalContent>
+</Modal>
+
     </Box>
   );
 };

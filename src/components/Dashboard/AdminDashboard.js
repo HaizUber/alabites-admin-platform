@@ -18,6 +18,7 @@ const AdminDashboard = () => {
   const [recentReviews, setRecentReviews] = useState([]);
   const [averageRating, setAverageRating] = useState(0);
   const [showModal, setShowModal] = useState(false);
+  const [allProducts, setAllProducts] = useState([]);
 
   const navigate = useNavigate();
 
@@ -89,7 +90,6 @@ const AdminDashboard = () => {
       try {
         if (!adminInfo || !adminInfo.storeId) {
           console.log('AdminInfo or storeId not available');
-          setShowModal(true);
           return;
         }
   
@@ -111,32 +111,33 @@ const AdminDashboard = () => {
         const storeProducts = productsData.data.filter(product => product.store === adminInfo.storeId);
         console.log('Store products:', storeProducts);
   
-        const storeOrders = ordersData.filter(order => {
-          return order.store === adminInfo.storeId && order.orderStatus === 'Completed';
+        // Filter completed orders for products sold
+        const completedOrders = ordersData.filter(order =>
+          order.store === adminInfo.storeId && order.orderStatus === 'Completed'
+        );
+  
+        const storeOrders = ordersData.filter(order => order.store === adminInfo.storeId);
+  
+        const storeReviews = reviewsData.filter(review =>
+          storeProducts.some(product => product._id === review.product)
+        );
+  
+        // Fetch detailed product data including photos
+        const productDetailsPromises = storeProducts.map(async product => {
+          const response = await fetch(`https://alabites-api.vercel.app/products/${product._id}`);
+          if (response.ok) {
+            const productDetail = await response.json();
+            return { ...product, ...productDetail }; // Merge with detailed product data
+          }
+          return product; // Return original product if fetch fails
         });
   
-        const storeReviews = reviewsData.filter(review => storeProducts.some(product => product._id === review.product));
+        const detailedProducts = await Promise.all(productDetailsPromises);
+        setAllProducts(detailedProducts);
   
         // Update state with fetched data
-        const productsSold = storeOrders.reduce((acc, order) => acc + order.items.reduce((sum, item) => sum + item.quantity, 0), 0);
-        setTotalProductsSold(productsSold);
-  
-        const revenue = storeOrders.reduce((acc, order) => acc + order.totalAmount, 0);
-        setTotalRevenue(revenue);
-  
-        setTotalOrders(storeOrders.length);
-  
-        const avgOrderValue = storeOrders.length ? (revenue / storeOrders.length).toFixed(2) : 0;
-        setAverageOrderValue(avgOrderValue);
-  
-        const uniqueCustomers = new Set(storeOrders.map(order => order.customer.email)).size;
-        setTotalCustomers(uniqueCustomers);
-  
-        const lowStock = storeProducts.filter(product => product.stock < 10); // adjust threshold as needed
-        setLowStockProducts(lowStock);
-  
         const productSales = {};
-        storeOrders.forEach(order => {
+        completedOrders.forEach(order => {
           order.items.forEach(item => {
             if (productSales[item.productId]) {
               productSales[item.productId].quantity += item.quantity;
@@ -145,7 +146,14 @@ const AdminDashboard = () => {
             }
           });
         });
-        const sortedProducts = Object.values(productSales).sort((a, b) => b.quantity - a.quantity).slice(0, 5);
+  
+        const sortedProducts = Object.values(productSales)
+          .map(item => ({
+            ...item,
+            ...detailedProducts.find(product => product._id === item.productId) // Merge with detailed product data
+          }))
+          .sort((a, b) => b.quantity - a.quantity)
+          .slice(0, 5);
         setTopSellingProducts(sortedProducts);
   
         const sortedOrders = storeOrders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5);
@@ -158,6 +166,34 @@ const AdminDashboard = () => {
         const avgRating = storeReviews.length ? (totalRatings / storeReviews.length).toFixed(1) : 0;
         setAverageRating(avgRating);
   
+        // Identify low stock products
+        const lowStock = storeProducts.filter(product => product.stock < 20); // Adjust threshold as needed
+        setLowStockProducts(lowStock);
+  
+        // Calculate total products sold (only from completed orders)
+        const totalSold = completedOrders.reduce((acc, order) => {
+          return acc + order.items.reduce((itemAcc, item) => itemAcc + item.quantity, 0);
+        }, 0);
+        setTotalProductsSold(totalSold);
+  
+        // Calculate total revenue (only from completed orders)
+        const revenue = completedOrders.reduce((acc, order) => {
+          return acc + order.totalAmount;
+        }, 0);
+        setTotalRevenue(revenue);
+  
+        // Calculate total orders (including all statuses)
+        setTotalOrders(storeOrders.length);
+  
+        // Calculate average order value (only from completed orders)
+        const avgOrderValue = completedOrders.length > 0 ?
+          (revenue / completedOrders.length).toFixed(2) : 0;
+        setAverageOrderValue(avgOrderValue);
+  
+        // Calculate total customers based on unique customer emails in orders
+        const uniqueCustomers = new Set(storeOrders.map(order => order.customer.email));
+        setTotalCustomers(uniqueCustomers.size);
+  
       } catch (error) {
         console.error('Error fetching data:', error);
         toast.error('Failed to fetch data');
@@ -167,10 +203,11 @@ const AdminDashboard = () => {
     if (adminInfo?.storeId) {
       fetchData();
     }
-  }, [adminInfo]);
+  }, [adminInfo, setRecentReviews, setTopSellingProducts, setRecentOrders, setAverageRating, setLowStockProducts]);
   
   
   
+    
   const handleCreateStore = () => {
     setShowModal(false);
     navigate('/create-store-form');
@@ -178,120 +215,158 @@ const AdminDashboard = () => {
 
   return (
     <div className="flex bg-gray-200 min-h-screen">
-    <div className="flex flex-col flex-1 bg-gray-100 border-l border-gray-100 p-3">
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 sm:gap-3">
-        <div className="flex flex-col rounded-lg border border-gray-300 px-4 py-8 text-center shadow-md transition duration-300 hover:shadow-lg bg-gradient-to-r from-orange-500 to-orange-300 bg-opacity-70">
-          <dt className="order-last text-lg font-medium text-gray-100">Total Products Sold</dt>
-          <dd className="text-4xl font-extrabold text-gray-100 md:text-5xl">{totalProductsSold}</dd>
+      <div className="flex flex-col flex-1 bg-gray-100 border-l border-gray-100 p-3">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 sm:gap-3">
+          <div className="flex flex-col rounded-lg border border-gray-300 px-4 py-8 text-center shadow-md transition duration-300 hover:shadow-lg bg-gradient-to-r from-orange-500 to-orange-300 bg-opacity-70">
+            <dt className="order-last text-lg font-medium text-gray-100">Total Products Sold</dt>
+            <dd className="text-4xl font-extrabold text-gray-100 md:text-5xl">{totalProductsSold}</dd>
+          </div>
+          <div className="flex flex-col rounded-lg border border-gray-300 px-4 py-8 text-center shadow-md transition duration-300 hover:shadow-lg bg-gradient-to-r from-blue-500 to-blue-300 bg-opacity-70">
+            <dt className="order-last text-lg font-medium text-gray-100">Total Revenue</dt>
+            <dd className="text-4xl font-extrabold text-gray-100 md:text-5xl">PHP {totalRevenue}</dd>
+          </div>
+          <div className="flex flex-col rounded-lg border border-gray-300 px-4 py-8 text-center shadow-md transition duration-300 hover:shadow-lg bg-gradient-to-r from-green-500 to-green-300 bg-opacity-70">
+            <dt className="order-last text-lg font-medium text-gray-100">Total Orders</dt>
+            <dd className="text-4xl font-extrabold text-gray-100 md:text-5xl">{totalOrders}</dd>
+          </div>
+          <div className="flex flex-col rounded-lg border border-gray-300 px-4 py-8 text-center shadow-md transition duration-300 hover:shadow-lg bg-gradient-to-r from-purple-500 to-purple-300 bg-opacity-70">
+            <dt className="order-last text-lg font-medium text-gray-100">Average Order Value</dt>
+            <dd className="text-4xl font-extrabold text-gray-100 md:text-5xl">PHP {averageOrderValue}</dd>
+          </div>
+          <div className="flex flex-col rounded-lg border border-gray-300 px-4 py-8 text-center shadow-md transition duration-300 hover:shadow-lg bg-gradient-to-r from-yellow-500 to-yellow-300 bg-opacity-70">
+            <dt className="order-last text-lg font-medium text-gray-100">Total Customers</dt>
+            <dd className="text-4xl font-extrabold text-gray-100 md:text-5xl">{totalCustomers}</dd>
+          </div>
+          <div className="flex flex-col rounded-lg border border-gray-300 px-4 py-8 text-center shadow-md transition duration-300 hover:shadow-lg bg-gradient-to-r from-red-500 to-red-300 bg-opacity-70">
+            <dt className="order-last text-lg font-medium text-gray-100">Average Rating</dt>
+            <dd className="text-4xl font-extrabold text-gray-100 md:text-5xl">{averageRating}</dd>
+          </div>
         </div>
-        <div className="flex flex-col rounded-lg border border-gray-300 px-4 py-8 text-center shadow-md transition duration-300 hover:shadow-lg bg-gradient-to-r from-blue-500 to-blue-300 bg-opacity-70">
-          <dt className="order-last text-lg font-medium text-gray-100">Total Revenue</dt>
-          <dd className="text-4xl font-extrabold text-gray-100 md:text-5xl">PHP {totalRevenue}</dd>
-        </div>
-        <div className="flex flex-col rounded-lg border border-gray-300 px-4 py-8 text-center shadow-md transition duration-300 hover:shadow-lg bg-gradient-to-r from-green-500 to-green-300 bg-opacity-70">
-          <dt className="order-last text-lg font-medium text-gray-100">Total Orders</dt>
-          <dd className="text-4xl font-extrabold text-gray-100 md:text-5xl">{totalOrders}</dd>
-        </div>
-        <div className="flex flex-col rounded-lg border border-gray-300 px-4 py-8 text-center shadow-md transition duration-300 hover:shadow-lg bg-gradient-to-r from-purple-500 to-purple-300 bg-opacity-70">
-          <dt className="order-last text-lg font-medium text-gray-100">Average Order Value</dt>
-          <dd className="text-4xl font-extrabold text-gray-100 md:text-5xl">PHP {averageOrderValue}</dd>
-        </div>
-        <div className="flex flex-col rounded-lg border border-gray-300 px-4 py-8 text-center shadow-md transition duration-300 hover:shadow-lg bg-gradient-to-r from-yellow-500 to-yellow-300 bg-opacity-70">
-          <dt className="order-last text-lg font-medium text-gray-100">Total Customers</dt>
-          <dd className="text-4xl font-extrabold text-gray-100 md:text-5xl">{totalCustomers}</dd>
-        </div>
-        <div className="flex flex-col rounded-lg border border-gray-300 px-4 py-8 text-center shadow-md transition duration-300 hover:shadow-lg bg-gradient-to-r from-pink-500 to-pink-300 bg-opacity-70">
-          <dt className="order-last text-lg font-medium text-gray-100">Average Rating</dt>
-          <dd className="text-4xl font-extrabold text-gray-100 md:text-5xl">{averageRating}</dd>
-        </div>
-      </div>
-      <div className="grid grid-cols-1 mt-6 gap-4 sm:grid-cols-2 sm:gap-3">
-        <div className="bg-white rounded-lg border border-gray-300 px-4 py-6 shadow-md transition duration-300 hover:shadow-lg">
-          <h3 className="text-lg font-medium text-gray-800 mb-4">Low Stock Products</h3>
-          <ul>
-            {lowStockProducts.map(product => (
-              <li key={product.id} className="flex justify-between items-center py-2">
-                <span>{product.name}</span>
-                <span className="text-red-500">Stock: {product.stock}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="bg-white rounded-lg border border-gray-300 px-4 py-6 shadow-md transition duration-300 hover:shadow-lg">
-          <h3 className="text-lg font-medium text-gray-800 mb-4">Top Selling Products</h3>
-          <ul>
-            {topSellingProducts.map(product => (
-              <li key={product.productId} className="flex justify-between items-center py-2">
-                <span>{product.name}</span>
-                <span className="text-green-500">{product.quantity} sold</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="bg-white rounded-lg border border-gray-300 px-4 py-6 shadow-md transition duration-300 hover:shadow-lg col-span-2">
-          <h3 className="text-lg font-medium text-gray-800 mb-4">Recent Orders</h3>
-          <ul>
-            {recentOrders.map(order => (
-              <li key={order.id} className="border-b border-gray-200 py-2">
-                <div className="flex justify-between items-center">
-                  <span>{order.customer.name}</span>
-                  <span>${order.totalAmount}</span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="bg-white rounded-lg border border-gray-300 px-4 py-6 shadow-md transition duration-300 hover:shadow-lg col-span-2">
-          <h3 className="text-lg font-medium text-gray-800 mb-4">Recent Reviews</h3>
-          <ul>
-            {recentReviews.map(review => (
-              <li key={review.id} className="border-b border-gray-200 py-2">
-                <div className="flex justify-between items-center">
-                  <span>{review.customerName}</span>
-                  <span className="flex items-center">
-                    {[...Array(5)].map((_, index) => (
-                      <svg key={index} xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 fill-current ${index < review.rating ? 'text-yellow-500' : 'text-gray-300'}`} viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 1l2.56 5.806L18 7.5l-4.65 4.19L14.8 19 10 15.987 5.2 19l1.45-7.31L2 7.5l5.44-.694L10 1z" clipRule="evenodd" />
-                      </svg>
-                    ))}
-                  </span>
-                </div>
-                <p className="text-sm text-gray-500">{review.comment}</p>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-    </div>
-      <ToastContainer position="bottom-right" />
-      {/* Modal for creating store */}
-      {showModal && (
-        <div className="fixed z-10 inset-0 overflow-y-auto">
-          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
-            </div>
-            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <div className="sm:flex sm:items-start">
-                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900">Create Store</h3>
-                    <div className="mt-2">
-                      <p className="text-sm text-gray-500">You need to create a store to continue.</p>
+
+        <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-4">
+          <div className="overflow-hidden rounded-lg border border-gray-300 shadow-md transition duration-300 hover:shadow-lg bg-white">
+            <div className="p-3">
+              <h3 className="text-lg font-medium text-gray-900">Low Stock Products</h3>
+              <ul className="mt-2 divide-y divide-gray-200">
+                {lowStockProducts.map((product) => (
+                  <li key={product._id} className="flex items-center justify-between py-2">
+                    <div className="flex items-center">
+                      <img
+                        className="h-10 w-10 rounded-full object-cover"
+                        src={product.productPhotos}
+                        alt={product.name}
+                      />
+                      <div className="ml-3">
+                        <p className="text-sm font-medium text-gray-900">{product.name}</p>
+                        <p className="text-sm text-red-500">Stock: {product.stock}</p>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                <button onClick={handleCreateStore} className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm">
-                  Create Store
-                </button>
-              </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-lg border border-gray-300 shadow-md transition duration-300 hover:shadow-lg bg-white">
+            <div className="p-3">
+              <h3 className="text-lg font-medium text-gray-900">Top Selling Products</h3>
+              <ul className="mt-2 divide-y divide-gray-200">
+                {topSellingProducts.map((product) => (
+                  <li key={product._id} className="flex items-center justify-between py-2">
+                    <div className="flex items-center">
+                      <img
+                        className="h-10 w-10 rounded-full object-cover"
+                        src={
+                          Array.isArray(product.productPhotos) && product.productPhotos.length > 0
+                            ? product.productPhotos[0]
+                            : 'https://via.placeholder.com/150'
+                        }
+                        alt={product.name}
+                      />
+                      <div className="ml-3">
+                        <p className="text-sm font-medium text-gray-900">{product.name}</p>
+                        <p className="text-sm text-gray-500">Sold: {product.quantity}</p>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-lg border border-gray-300 shadow-md transition duration-300 hover:shadow-lg bg-white">
+            <div className="p-3">
+              <h3 className="text-lg font-medium text-gray-900">Recent Orders</h3>
+              <ul className="mt-2 divide-y divide-gray-200">
+                {recentOrders.map((order) => (
+                  <li key={order._id} className="py-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">Order ID: {order.orderNumber}</p>
+                        <p className="text-sm text-gray-500">Customer: {order.customer.name}</p>
+                        <p className="text-sm text-gray-500">Date: {new Date(order.createdAt).toLocaleDateString()}</p>
+                      </div>
+                      <div className="text-sm font-medium text-gray-900">PHP {order.totalAmount}</div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          {/* Recent Reviews Section */}
+          <div className="overflow-hidden rounded-lg border border-gray-300 shadow-md transition duration-300 hover:shadow-lg bg-white">
+            <div className="p-3">
+              <h3 className="text-lg font-medium text-gray-900">Recent Reviews</h3>
+              <ul className="mt-2 divide-y divide-gray-200">
+                {allProducts.length > 0 && recentReviews.map((review) => {
+                  // Find the corresponding product for this review
+                  const product = allProducts.find((product) => product._id === review.product) || {};
+                  return (
+                    <li key={review._id} className="py-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          {/* Product Image */}
+                          <img
+                            className="h-16 w-16 rounded-full object-cover"
+                            src={product.productPhotos?.[0] || 'https://via.placeholder.com/150'}
+                            alt={product.name}
+                          />
+                          {/* Review Details */}
+                          <div className="ml-4">
+                            <p className="text-sm font-medium text-gray-900">Product: {product.name}</p>
+                            <p className="text-sm text-gray-500">Comment: {review.comment}</p>
+                            <p className="text-sm text-gray-500">Rating: {review.rating}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
           </div>
         </div>
-      )}
+
+        {showModal && (
+          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
+            <div className="bg-white rounded-lg p-6">
+              <h2 className="text-lg font-semibold mb-4">Create a Store</h2>
+              <p className="mb-4">
+                It looks like you don't have a store yet. Please create a store to get started.
+              </p>
+              <button
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition duration-300"
+                onClick={handleCreateStore}
+              >
+                Create Store
+              </button>
+            </div>
+          </div>
+        )}
+
+        <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} closeOnClick pauseOnFocusLoss draggable pauseOnHover />
+      </div>
     </div>
   );
 };

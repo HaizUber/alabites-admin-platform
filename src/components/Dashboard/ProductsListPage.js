@@ -15,9 +15,20 @@ import {
   FormControl,
   FormLabel,
   Spinner,
+  Table,
+  Thead,
+  Tbody,
+  Tr,
+  Th,
+  Td,
+  Image,
+  Box,
+  Checkbox,
+  IconButton,
+  SimpleGrid,
+  ModalCloseButton,
 } from '@chakra-ui/react';
-import { DeleteIcon } from '@chakra-ui/icons';
-import { motion } from 'framer-motion';
+import { DeleteIcon, EditIcon } from '@chakra-ui/icons';
 import { auth } from '../../config/firebase';
 import { uploadImage, deleteImage } from '../utils/firebasefunctions';
 import axios from 'axios';
@@ -29,6 +40,7 @@ import {
   updateProduct,
   deleteProduct,
 } from '../utils/products';
+import { motion } from 'framer-motion';
 
 const ProductListPage = ({ isCollapsed, toggleMenu }) => {
   const [uid, setUid] = useState(null);
@@ -39,6 +51,8 @@ const ProductListPage = ({ isCollapsed, toggleMenu }) => {
   const [isUploadingImages, setIsUploadingImages] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -48,8 +62,21 @@ const ProductListPage = ({ isCollapsed, toggleMenu }) => {
     tags: '',
     discount: '',
   });
-  const [selectedFiles, setSelectedFiles] = useState([]); // New state to hold selected files
+  const [selectedFiles, setSelectedFiles] = useState([]);
   const [currentProduct, setCurrentProduct] = useState(null);
+  const [filters, setFilters] = useState({
+    name: '',
+    startDate: '',
+    endDate: '',
+    minPrice: '',
+    maxPrice: '',
+    withDiscount: false,
+    lowStock: false,
+  });
+  const [deleteConfirmationModal, setDeleteConfirmationModal] = useState(false);
+  const [deletePhotoConfirmationModal, setDeletePhotoConfirmationModal] = useState(false);
+  const [deletingProductId, setDeletingProductId] = useState('');
+  const [deletingPhotoIndex, setDeletingPhotoIndex] = useState(-1);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -102,6 +129,10 @@ const ProductListPage = ({ isCollapsed, toggleMenu }) => {
     loadProducts();
   }, [adminuid]);
 
+  useEffect(() => {
+    applyFilters();
+  }, [filters, products]);
+
   const handleCreateProduct = () => {
     setShowModal(true);
     setIsEditing(false);
@@ -114,12 +145,16 @@ const ProductListPage = ({ isCollapsed, toggleMenu }) => {
       tags: '',
       discount: '',
     });
-    setSelectedFiles([]); // Clear selected files
+    setSelectedFiles([]);
     setCurrentProduct(null);
   };
 
   const handleCloseModal = () => {
     setShowModal(false);
+    resetFormData();
+  };
+
+  const resetFormData = () => {
     setFormData({
       name: '',
       description: '',
@@ -129,7 +164,7 @@ const ProductListPage = ({ isCollapsed, toggleMenu }) => {
       tags: '',
       discount: '',
     });
-    setSelectedFiles([]); // Clear selected files
+    setSelectedFiles([]);
     setCurrentProduct(null);
   };
 
@@ -149,25 +184,25 @@ const ProductListPage = ({ isCollapsed, toggleMenu }) => {
 
   const handleFileChange = (event) => {
     const files = Array.from(event.target.files);
-    setSelectedFiles(files); // Store selected files in state
+    setSelectedFiles(files);
   };
 
   const handleSubmit = async () => {
     try {
+      setIsSubmitting(true); // Set isSubmitting to true to indicate form submission in progress
+  
       const generatedPid = generateProductId();
       const storeId = await fetchStoreId(adminuid);
-
-      // Upload selected images to Firebase Storage
+  
       const uploadedPhotoURLs = await Promise.all(selectedFiles.map(async (file) => {
         const productName = formData.name.toString();
         return await uploadImage(file, `storeId-${productName}-${file.name}`);
       }));
-
-      // Combine existing photos with new uploaded photos
+  
       const updatedProductPhotos = [...formData.productPhotos, ...uploadedPhotoURLs];
-
+  
       const productData = { ...formData, store: storeId, pid: generatedPid, productPhotos: updatedProductPhotos };
-
+  
       if (isEditing) {
         await updateProduct(currentProduct._id, productData);
         toast.success('Product updated successfully');
@@ -175,12 +210,15 @@ const ProductListPage = ({ isCollapsed, toggleMenu }) => {
         await createProduct(productData);
         toast.success('Product created successfully');
       }
+  
       handleCloseModal();
+      setIsSubmitting(false); // Reset isSubmitting after successful form submission
     } catch (error) {
       toast.error('Error handling form data');
+      setIsSubmitting(false); // Reset isSubmitting in case of error
     }
   };
-
+  
   const handleEditProduct = (product) => {
     setCurrentProduct(product);
     setFormData({
@@ -192,241 +230,386 @@ const ProductListPage = ({ isCollapsed, toggleMenu }) => {
       tags: product.tags,
       discount: product.discount,
     });
-    setSelectedFiles([]); // Clear selected files when editing
+    setSelectedFiles([]);
     setShowModal(true);
     setIsEditing(true);
   };
 
   const handleDeleteProduct = async (productId, productPhotos) => {
+    setDeletingProductId(productId);
+    setDeleteConfirmationModal(true);
+  };
+
+  const handleDeleteConfirmed = async () => {
     try {
-      if (Array.isArray(productPhotos)) {
-        await Promise.all(productPhotos.map(async (photoURL) => {
-          await deleteImage(photoURL);
+      setIsDeleting(true); // Set isDeleting to true to indicate deletion process in progress
+  
+      if (deleteConfirmationModal) {
+        await deleteProduct(deletingProductId);
+        toast.success('Product deleted successfully');
+      } else if (deletePhotoConfirmationModal && deletingPhotoIndex !== -1) {
+        const photoPath = formData.productPhotos[deletingPhotoIndex];
+        await deleteImage(photoPath);
+        const updatedPhotos = [...formData.productPhotos];
+        updatedPhotos.splice(deletingPhotoIndex, 1);
+        setFormData((prev) => ({
+          ...prev,
+          productPhotos: updatedPhotos,
         }));
+        toast.success('Photo deleted successfully');
       }
-      await deleteProduct(productId);
-      toast.success('Product deleted successfully');
     } catch (error) {
       toast.error('Error deleting product');
+    } finally {
+      setIsDeleting(false); // Reset isDeleting after deletion process completes (success or error)
+      setDeleteConfirmationModal(false);
+      setDeletePhotoConfirmationModal(false);
     }
+  };
+  
+
+  const handleCancelDelete = () => {
+    setDeleteConfirmationModal(false);
+    setDeletePhotoConfirmationModal(false);
   };
 
   const handleDeletePhoto = async (index) => {
-    const photoPath = formData.productPhotos[index];
-    try {
-      if (photoPath) {
-        await deleteImage(photoPath);
-      }
-      const updatedPhotos = [...formData.productPhotos];
-      updatedPhotos.splice(index, 1);
-      setFormData((prev) => ({
-        ...prev,
-        productPhotos: updatedPhotos,
-      }));
-      toast.success('Photo deleted successfully');
-    } catch (error) {
-      toast.error('Failed to delete photo');
-    }
+    setDeletingPhotoIndex(index);
+    setDeletePhotoConfirmationModal(true);
   };
 
   const handleFilterChange = (e) => {
-    const { value } = e.target;
-    if (value === 'all') {
-      setFilteredProducts(products);
-    } else {
-      const filtered = products.filter((product) => product.tags.toLowerCase().includes(value.toLowerCase()));
-      setFilteredProducts(filtered);
+    const { name, value, type, checked } = e.target;
+    setFilters((prev) => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value,
+    }));
+  };
+
+  const handleClearFilters = () => {
+    setFilters({
+      name: '',
+      startDate: '',
+      endDate: '',
+      minPrice: '',
+      maxPrice: '',
+      withDiscount: false,
+      lowStock: false,
+    });
+  };
+
+  const applyFilters = () => {
+    let filtered = products;
+
+    // Filtering by name
+    if (filters.name) {
+      filtered = filtered.filter((product) =>
+        product.name.toLowerCase().includes(filters.name.toLowerCase())
+      );
     }
+
+    // Filtering by date
+    if (filters.startDate && filters.endDate) {
+      filtered = filtered.filter((product) => {
+        const createdAt = new Date(product.createdAt);
+        return createdAt >= new Date(filters.startDate) && createdAt <= new Date(filters.endDate);
+      });
+    }
+
+    // Filtering by price
+    if (filters.minPrice || filters.maxPrice) {
+      filtered = filtered.filter((product) => {
+        const price = parseFloat(product.price);
+        const minPrice = filters.minPrice ? parseFloat(filters.minPrice) : 0;
+        const maxPrice = filters.maxPrice ? parseFloat(filters.maxPrice) : Number.MAX_SAFE_INTEGER;
+        return price >= minPrice && price <= maxPrice;
+      });
+    }
+
+    // Filtering by discount
+    if (filters.withDiscount) {
+      filtered = filtered.filter((product) => product.discount > 0);
+    }
+
+    // Filtering by low stock
+    if (filters.lowStock) {
+      filtered = filtered.filter((product) => product.stock < 20);
+    }
+
+    setFilteredProducts(filtered);
   };
 
   return (
-    <div className="flex flex-col md:flex-row">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
+      className="flex-row flex-wrap p-4"
+    >
       <VerticalMenu isCollapsed={isCollapsed} toggleMenu={toggleMenu} />
-
-      <div className={`flex-1 ml-0 md:ml-20 mt-12 mb-12`}>
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-semibold">Product List</h2>
-          <button
-            onClick={handleCreateProduct}
-            className="px-4 py-2 bg-blue-500 text-white rounded-md shadow-md hover:bg-blue-600 focus:outline-none"
-          >
-            Add Product
-          </button>
-        </div>
-
-        {loading ? (
-          <div className="flex items-center justify-center h-64">
-            <p className="text-gray-500 text-lg">Loading products...</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full bg-white divide-y divide-gray-200">
-              <thead className="bg-gray-800 text-white">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Description</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Price</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Photos</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Stock</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Tags</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Discount</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredProducts.map((product) => (
-                  <tr key={product._id}>
-                    <td className="px-6 py-4 whitespace-nowrap">{product.name}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">{product.description}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">{product.price}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {product.productPhotos.length > 0 ? (
-                        <div className="flex flex-wrap">
-                          {product.productPhotos.map((photo, index) => (
-                            <img
-                              key={index}
-                              src={photo}
-                              alt={`product-${index}`}
-                              className="h-12 w-12 object-cover m-1"
-                            />
-                          ))}
-                        </div>
-                      ) : (
-                        <img
-                          src="https://via.placeholder.com/64"
-                          alt="placeholder"
-                          className="h-12 w-12 object-cover"
-                        />
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">{product.stock}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">{product.tags}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">{product.discount}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <button
-                        onClick={() => handleEditProduct(product)}
-                        className="px-2 py-1 bg-yellow-500 text-white rounded-md shadow-md hover:bg-yellow-600 focus:outline-none mr-2"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteProduct(product._id, product.productPhotos)}
-                        className="px-2 py-1 bg-red-500 text-white rounded-md shadow-md hover:bg-red-600 focus:outline-none"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      <Modal isOpen={showModal} onClose={handleCloseModal}>
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>{isEditing ? 'Edit Product' : 'Add Product'}</ModalHeader>
-          <ModalBody>
-            <FormControl id="name" mb={4}>
-              <FormLabel>Product Name</FormLabel>
-              <Input
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleChange}
-              />
-            </FormControl>
-            <FormControl id="description" mb={4}>
-              <FormLabel>Product Description</FormLabel>
-              <Textarea
-                name="description"
-                value={formData.description}
-                onChange={handleChange}
-              />
-            </FormControl>
-            <FormControl id="price" mb={4}>
-              <FormLabel>Price</FormLabel>
-              <Input
-                type="number"
-                name="price"
-                value={formData.price}
-                onChange={handleChange}
-              />
-            </FormControl>
-            <FormControl id="productPhotos" mb={4}>
-              <FormLabel>Product Photos</FormLabel>
-              <Input
-                type="file"
-                multiple
-                onChange={handleFileChange}
-              />
-              <div className="mt-2">
-                {formData.productPhotos.length > 0 &&
-                  formData.productPhotos.map((photo, index) => (
-                    <div key={index} className="relative inline-block mr-2 mb-2">
-                      <img
-                        src={photo}
-                        alt={`product-${index}`}
-                        className="h-16 w-16 object-cover"
-                      />
-                      <button
-                        onClick={() => handleDeletePhoto(index)}
-                        className="absolute top-0 right-0 p-1 bg-red-500 text-white rounded-full"
-                      >
-                        <DeleteIcon boxSize={4} />
-                      </button>
-                    </div>
-                  ))}
-              </div>
-            </FormControl>
-            <FormControl id="stock" mb={4}>
-              <FormLabel>Stock</FormLabel>
-              <Input
-                type="number"
-                name="stock"
-                value={formData.stock}
-                onChange={handleChange}
-              />
-            </FormControl>
-            <FormControl id="tags" mb={4}>
-              <FormLabel>Tags</FormLabel>
-              <Input
-                type="text"
-                name="tags"
-                value={formData.tags}
-                onChange={handleChange}
-              />
-            </FormControl>
-            <FormControl id="discount" mb={4}>
-              <FormLabel>Discount</FormLabel>
-              <Input
-                type="number"
-                name="discount"
-                value={formData.discount}
-                onChange={handleChange}
-              />
-            </FormControl>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              onClick={handleSubmit}
-              isLoading={isUploadingImages}
-              loadingText="Uploading"
-              colorScheme="blue"
-              mr={3}
-            >
-              {isEditing ? 'Update Product' : 'Create Product'}
-            </Button>
-            <Button onClick={handleCloseModal}>Cancel</Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
-
       <ToastContainer />
-    </div>
+      <div className={`flex-col flex-auto p-4 ml-${isCollapsed ? '28' : '0'}`}>
+        <div className="rounded-md p-4 mb-4 bg-white">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold">Products</h2>
+            <button
+              onClick={handleCreateProduct}
+              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md focus:outline-none"
+            >
+              Add Product
+            </button>
+          </div>
+          <div className="flex flex-col md:flex-row gap-4 mb-4">
+            <input
+              type="text"
+              name="name"
+              value={filters.name}
+              onChange={handleFilterChange}
+              placeholder="Filter by name"
+              className="w-full md:w-1/4 p-2 border border-gray-300 rounded-md"
+            />
+            <input
+              type="date"
+              name="startDate"
+              value={filters.startDate}
+              onChange={handleFilterChange}
+              placeholder="Start Date"
+              className="w-full md:w-1/4 p-2 border border-gray-300 rounded-md"
+            />
+            <input
+              type="date"
+              name="endDate"
+              value={filters.endDate}
+              onChange={handleFilterChange}
+              placeholder="End Date"
+              className="w-full md:w-1/4 p-2 border border-gray-300 rounded-md"
+            />
+            <input
+              type="number"
+              name="minPrice"
+              value={filters.minPrice}
+              onChange={handleFilterChange}
+              placeholder="Min Price"
+              className="w-full md:w-1/4 p-2 border border-gray-300 rounded-md"
+            />
+            <input
+              type="number"
+              name="maxPrice"
+              value={filters.maxPrice}
+              onChange={handleFilterChange}
+              placeholder="Max Price"
+              className="w-full md:w-1/4 p-2 border border-gray-300 rounded-md"
+            />
+            <label className="flex items-center space-x-2">
+              <Checkbox
+                name="withDiscount"
+                checked={filters.withDiscount}
+                onChange={handleFilterChange}
+                className="text-blue-500 border-gray-300 rounded-md"
+              />
+              <span>With Discount</span>
+            </label>
+            <label className="flex items-center space-x-2">
+              <Checkbox
+                name="lowStock"
+                checked={filters.lowStock}
+                onChange={handleFilterChange}
+                className="text-blue-500 border-gray-300 rounded-md"
+              />
+              <span>Low Stock</span>
+            </label>
+            <button
+              onClick={handleClearFilters}
+              className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-md focus:outline-none"
+            >
+              Clear Filters
+            </button>
+          </div>
+          <div className="overflow-x-auto">
+            <Table variant="simple" className="w-full table-with-scroll">
+              <Thead>
+                <Tr>
+                  <Th>Product</Th>
+                  <Th>Description</Th>
+                  <Th>Price in (PHP)</Th>
+                  <Th>Stock</Th>
+                  <Th>Discount (%)</Th>
+                  <Th>Actions</Th>
+                </Tr>
+              </Thead>
+              <Tbody>
+                {filteredProducts.map((product) => (
+                  <Tr key={product._id}>
+                    <Td>{product.name}</Td>
+                    <Td>{product.description}</Td>
+                    <Td>{product.price}</Td>
+                    <Td>{product.stock}</Td>
+                    <Td>{product.discount}%</Td>
+                    <Td>
+                      <IconButton
+                        aria-label="Edit"
+                        icon={<EditIcon />}
+                        onClick={() => handleEditProduct(product)}
+                        className="text-blue-500 hover:text-blue-700"
+                      />
+                      <IconButton
+                        aria-label="Delete"
+                        icon={<DeleteIcon />}
+                        onClick={() => handleDeleteProduct(product._id, product.productPhotos)}
+                        className="text-red-500 hover:text-red-700 ml-2"
+                      />
+                    </Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          </div>
+        </div>
+      </div>
+  
+{/* Product Modal */}
+<Modal isOpen={showModal} onClose={handleCloseModal} size="xl">
+  <ModalOverlay />
+  <ModalContent>
+    <ModalHeader>{isEditing ? 'Edit Product' : 'Add Product'}</ModalHeader>
+    <ModalCloseButton />
+    <ModalBody>
+      <FormControl id="name" isRequired>
+        <FormLabel>Name</FormLabel>
+        <Input
+          type="text"
+          name="name"
+          value={formData.name}
+          onChange={handleChange}
+          placeholder="Enter product name"
+        />
+      </FormControl>
+      <FormControl id="description" isRequired>
+        <FormLabel>Description</FormLabel>
+        <Textarea
+          name="description"
+          value={formData.description}
+          onChange={handleChange}
+          placeholder="Enter product description"
+        />
+      </FormControl>
+      <FormControl id="price" isRequired>
+        <FormLabel>Price</FormLabel>
+        <Input
+          type="number"
+          name="price"
+          value={formData.price}
+          onChange={handleChange}
+          placeholder="Enter product price"
+        />
+      </FormControl>
+      <FormControl id="stock" isRequired>
+        <FormLabel>Stock</FormLabel>
+        <Input
+          type="number"
+          name="stock"
+          value={formData.stock}
+          onChange={handleChange}
+          placeholder="Enter product stock"
+        />
+      </FormControl>
+      <FormControl id="tags">
+        <FormLabel>Tags (comma separated)</FormLabel>
+        <Input
+          type="text"
+          name="tags"
+          value={formData.tags}
+          onChange={handleChange}
+          placeholder="Enter product tags"
+        />
+      </FormControl>
+      <FormControl id="discount">
+        <FormLabel>Discount (%)</FormLabel>
+        <Input
+          type="number"
+          name="discount"
+          value={formData.discount}
+          onChange={handleChange}
+          placeholder="Enter discount percentage"
+        />
+      </FormControl>
+      <FormControl id="productPhotos">
+        <FormLabel>Product Photos</FormLabel>
+        <SimpleGrid columns={2} spacing={4}>
+          {formData.productPhotos.map((photo, index) => (
+            <Box key={index} position="relative">
+              <Image src={photo} alt={`Product ${index}`} className="w-full h-auto" />
+              <IconButton
+                aria-label="Delete Photo"
+                icon={<DeleteIcon />}
+                onClick={() => handleDeletePhoto(index)}
+                className="absolute top-0 right-0 m-2 text-red-500 hover:text-red-700"
+              />
+            </Box>
+          ))}
+        </SimpleGrid>
+        <Input
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={handleFileChange}
+          className="mt-2"
+        />
+      </FormControl>
+    </ModalBody>
+    <ModalFooter>
+      <Button colorScheme="blue" mr={3} onClick={handleSubmit} isLoading={isSubmitting}>
+        {isEditing ? (isSubmitting ? 'Updating...' : 'Update') : (isSubmitting ? 'Creating...' : 'Create')}
+      </Button>
+      <Button onClick={handleCloseModal} disabled={isSubmitting}>
+        Cancel
+      </Button>
+    </ModalFooter>
+  </ModalContent>
+</Modal>
+
+{/* Delete Confirmation Modal */}
+<Modal isOpen={deleteConfirmationModal} onClose={handleCancelDelete}>
+  <ModalOverlay />
+  <ModalContent>
+    <ModalHeader>Confirm Delete</ModalHeader>
+    <ModalCloseButton />
+    <ModalBody>
+      <p>Are you sure you want to delete this product?</p>
+    </ModalBody>
+    <ModalFooter>
+      <Button colorScheme="red" onClick={handleDeleteConfirmed} isLoading={isDeleting}>
+        {isDeleting ? 'Deleting...' : 'Delete'}
+      </Button>
+      <Button onClick={handleCancelDelete} disabled={isDeleting}>
+        Cancel
+      </Button>
+    </ModalFooter>
+  </ModalContent>
+</Modal>
+
+{/* Delete Photo Confirmation Modal */}
+<Modal isOpen={deletePhotoConfirmationModal} onClose={handleCancelDelete}>
+  <ModalOverlay />
+  <ModalContent>
+    <ModalHeader>Confirm Delete Photo</ModalHeader>
+    <ModalCloseButton />
+    <ModalBody>
+      <p>Are you sure you want to delete this photo?</p>
+    </ModalBody>
+    <ModalFooter>
+      <Button colorScheme="red" onClick={handleDeleteConfirmed} isLoading={isDeleting}>
+        {isDeleting ? 'Deleting...' : 'Delete'}
+      </Button>
+      <Button onClick={handleCancelDelete} disabled={isDeleting}>
+        Cancel
+      </Button>
+    </ModalFooter>
+  </ModalContent>
+</Modal>
+
+    </motion.div>
   );
 };
-
+  
 export default ProductListPage;
