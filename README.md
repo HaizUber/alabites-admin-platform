@@ -48,7 +48,7 @@
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE]([LICENSE](https://mit-license.org/)) file for details.
+This project is licensed under the [MIT License](https://mit-license.org/)
 
 ## Contact
 
