@@ -34,9 +34,6 @@ const createProduct = async (productData) => {
 
 const updateProduct = async (id, productData) => {
   return await axios.put(`https://alabites-api.vercel.app/products/${id}`, productData, {
-    headers: {
-      'Content-Type': 'application/json',
-    },
   });
 };
 
