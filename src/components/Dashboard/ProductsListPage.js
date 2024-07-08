@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import VerticalMenu from './VerticalMenu';
+import { useNavigate } from 'react-router-dom';
 import {
   Modal,
   ModalOverlay,
@@ -78,12 +79,14 @@ const ProductListPage = ({ isCollapsed, toggleMenu }) => {
   const [deletingProductId, setDeletingProductId] = useState('');
   const [deletingPhotoIndex, setDeletingPhotoIndex] = useState(-1);
 
+  const navigate = useNavigate();
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
         setUid(user.uid);
       } else {
         setUid(null);
+        navigate('/login'); // Redirect to login if user is not authenticated
       }
     });
     return () => unsubscribe();

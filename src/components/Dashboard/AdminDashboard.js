@@ -30,6 +30,7 @@ const AdminDashboard = () => {
       } else {
         console.log('No user authenticated');
         setUid(null);
+        navigate('/login'); // Redirect to login if user is not authenticated
       }
     });
 

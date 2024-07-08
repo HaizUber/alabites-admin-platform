@@ -24,6 +24,7 @@ import {
 import { motion } from 'framer-motion';
 import axios from 'axios';
 import { auth } from '../../config/firebase';
+import { useNavigate } from 'react-router-dom';
 
 const OrdersComponent = ({ handleOrderStatusChange }) => {
   const [orders, setOrders] = useState([]);
@@ -49,12 +50,14 @@ const OrdersComponent = ({ handleOrderStatusChange }) => {
   const ordersPerPage = 15; // Number of orders to display per page
   const maxVisiblePages = 5; // Maximum number of pages to show directly
 
+  const navigate = useNavigate();
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(user => {
       if (user) {
         setUid(user.uid);
       } else {
         setUid(null);
+        navigate('/login'); // Redirect to login if user is not authenticated
       }
     });
 

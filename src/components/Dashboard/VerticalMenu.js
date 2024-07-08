@@ -5,6 +5,7 @@ import Tippy from "@tippyjs/react";
 import "tippy.js/dist/tippy.css";
 import { auth } from "../../config/firebase";
 import logo from "../../assets/logo.png";
+import { signOut } from "firebase/auth"; // Import signOut from Firebase auth
 
 const GridIcon = () => (
   <svg
@@ -113,8 +114,16 @@ const VerticalMenu = ({ isCollapsed, toggleMenu }) => {
     }
   };
 
-  const handleLogout = () => {
-    auth.signOut();
+  const handleLogout = async () => {
+    try {
+      // Sign out the user from Firebase
+      await signOut(auth);
+      // Redirect to login page after successful logout
+      navigate("/login");
+    } catch (error) {
+      console.error("Error signing out:", error);
+      // Handle sign-out error
+    }
   };
 
   return (

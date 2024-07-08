@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Tooltip } from "@chakra-ui/react";
 import { useNavigate } from "react-router-dom";
+import { signOut } from "firebase/auth"; // Import signOut from Firebase auth
+import { auth } from "../../config/firebase"; // Ensure auth is imported from your Firebase config
 
 const SettingsIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" className="icon icon-tabler icon-tabler-settings" width={24} height={24} viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" fill="none">
@@ -18,10 +20,16 @@ const HorizontalMenu = ({ toggleMenu, adminInfo }) => {
   const firstName = adminInfo?.firstName || 'Admin';
   const lastName = adminInfo?.lastName || '';
 
-  const handleLogout = () => {
-    // Add your logout logic here
-    // After successful logout, redirect to login page
-    navigate("/login");
+  const handleLogout = async () => {
+    try {
+      // Sign out the user from Firebase
+      await signOut(auth);
+      // Redirect to login page after successful logout
+      navigate("/login");
+    } catch (error) {
+      console.error("Error signing out:", error);
+      // Handle sign-out error
+    }
   };
 
   return (
@@ -94,7 +102,7 @@ const HorizontalMenu = ({ toggleMenu, adminInfo }) => {
                 className="flex items-center px-4 py-2 hover:bg-gray-100 cursor-pointer"
                 onClick={() => {
                   setMenuOpen(false);
-                  handleLogout();
+                  handleLogout(); // Call handleLogout function on logout button click
                 }}
               >
                 <svg

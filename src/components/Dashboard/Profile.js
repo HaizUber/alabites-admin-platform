@@ -6,6 +6,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import { motion } from 'framer-motion';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { storage } from '../../config/firebase';
+import { useNavigate } from 'react-router-dom';
 import {
   Button,
   Input,
@@ -56,12 +57,14 @@ const ProfilePage = ({ isCollapsed, toggleMenu }) => {
   const [aboutMe, setAboutMe] = useState(''); // New state for About Me section
   const [submitting, setSubmitting] = useState(false);
 
+  const navigate = useNavigate();
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
         setUid(user.uid);
       } else {
         setUid(null);
+        navigate('/login'); // Redirect to login if user is not authenticated
       }
     });
 
