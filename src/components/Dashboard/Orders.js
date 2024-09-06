@@ -359,6 +359,9 @@ const OrdersComponent = ({ handleOrderStatusChange }) => {
             <strong>Email:</strong> {selectedOrder.customer.email}
           </Box>
           <Box mb={4}>
+            <strong>Payment Method:</strong> {selectedOrder.paymentDetails.method}
+          </Box>
+          <Box mb={4}>
             <strong>Order Status:</strong>{' '}
             <Box
               display="inline-block"
