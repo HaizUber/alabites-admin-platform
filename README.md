@@ -1,70 +1,55 @@
-# Getting Started with Create React App
+# Alabites Admin Platform
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+## Overview
 
-## Available Scripts
+**Alabites Admin Platform** is a React-based administration platform designed to manage the Alabites ecommerce website. This platform allows admins to handle various tasks, including managing orders, products, users, and stores. The platform is built with modern web technologies to provide a seamless and efficient user experience. It is hosted on Vercel for easy deployment and scalability.
 
-In the project directory, you can run:
+## Features
 
-### `npm start`
+- **User Management:** Manage user profiles, roles, and permissions.
+- **Order Management:** View, filter, and update order statuses.
+- **Product Management:** Create, edit, update, and delete products, including image management.
+- **Store Management:** Manage store information and inventory.
+- **Notifications:** Receive alerts and notifications for various admin tasks.
+- **Responsive Design:** Optimized for both desktop and mobile views.
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+## Tech Stack
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+- **Frontend:** React, Chakra UI, Framer Motion, Tailwind CSS
+- **Backend:** Node.js, Express
+- **Database:** MongoDB (using Mongoose)
+- **Authentication:** Firebase
+- **Storage:** Firebase Storage
+- **API Requests:** Axios
 
-### `npm test`
+## Usage
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+1. **Login:**
+   - Admins can log in using their Firebase credentials.
+   
+2. **Dashboard:**
+   - The dashboard provides an overview of orders, products, and other key metrics.
 
-### `npm run build`
+3. **Manage Orders:**
+   - View and filter orders by status, date, and other criteria.
+   - Update order statuses and view order details.
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+4. **Manage Products:**
+   - Add new products with images.
+   - Edit existing products and manage product images.
+   - Delete products and handle product photo deletion.
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+5. **User Profiles:**
+   - View and update admin profile information.
+   - Manage user roles and permissions.
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+6. **Store Management:**
+   - Update store details and manage inventory.
 
-### `npm run eject`
+## License
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+This project is licensed under the [MIT License](https://mit-license.org/)
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## Contact
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+For any inquiries, please contact [HaizUber](mailto:gabzmejia117@gmail.com).
