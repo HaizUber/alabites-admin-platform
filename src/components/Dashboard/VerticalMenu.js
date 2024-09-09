@@ -238,6 +238,29 @@ const VerticalMenu = ({ isCollapsed, toggleMenu }) => {
               </a>
             </Tippy>
           </motion.li>
+          <motion.li
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.4 }}
+          >
+            <Tippy content="Store" placement="right">
+              <a
+                href="/store"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleMenuItemClick("/store");
+                }}
+                className={`flex items-center rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 transition ${
+                  location.pathname === "/orders"
+                    ? "bg-gray-200"
+                    : "bg-gray-100"
+                } ${isCollapsed ? "justify-center" : ""}`}
+              >
+                <StackIcon />
+                {!isCollapsed && <span className="ml-3">Store</span>}
+              </a>
+            </Tippy>
+          </motion.li>
         </ul>
       </div>
       <div className="px-4 py-3 border-t">

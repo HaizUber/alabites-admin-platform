@@ -9,6 +9,7 @@ import ProfilePage from './components/Dashboard/Profile';
 import ProductListPage from './components/Dashboard/ProductsListPage';
 import AddTamCredits from './components/overseer/addtamcredits';
 import OrdersComponent from './components/Dashboard/Orders';
+import StoreComponent from './components/Dashboard/StoreProfile';
 import HorizontalMenu from './components/Dashboard/HorizontalMenu';
 import VerticalMenu from './components/Dashboard/VerticalMenu'; // Import VerticalMenu
 import { auth } from './config/firebase';
@@ -73,6 +74,7 @@ function App() {
             <Route path="/products" element={<ProductListPage isCollapsed={isVerticalMenuCollapsed} toggleMenu={toggleMenu} />} />
             <Route path="/add-tam-credits" element={<AddTamCredits />} />
             <Route path="/orders" element={<OrdersComponent />} />
+            <Route path="/store" element={<StoreComponent isCollapsed={isVerticalMenuCollapsed} toggleMenu={toggleMenu} />} />
           </Routes>
         </div>
       </Router>
