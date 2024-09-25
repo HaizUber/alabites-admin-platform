@@ -24,6 +24,8 @@ import {
   Image,
   Textarea,
   useDisclosure,
+  VStack,
+  HStack,
 } from '@chakra-ui/react';
 import VerticalMenu from './VerticalMenu';
 
@@ -36,11 +38,15 @@ const PencilIcon = (
 const StoreProfilePage = ({ isCollapsed, toggleMenu }) => {
   const [uid, setUid] = useState(null);
   const [storeInfo, setStoreInfo] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [logoFile, setLogoFile] = useState(null);
   const [logoBase64, setLogoBase64] = useState(null);
   const [storeName, setStoreName] = useState('');
   const [description, setDescription] = useState('');
+  const [gcashNumber, setGcashNumber] = useState('');
+  const [gcashQRFile, setGcashQRFile] = useState(null);
+  const [gcashQRBase64, setGcashQRBase64] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [storeId, setStoreId] = useState(null);
 
@@ -61,6 +67,7 @@ const StoreProfilePage = ({ isCollapsed, toggleMenu }) => {
 
   useEffect(() => {
     const fetchAdminInfo = async () => {
+      setIsLoading(true);
       try {
         const response = await fetch(`https://alabites-api.vercel.app/admins/query/${uid}`);
         if (response.ok) {
@@ -70,78 +77,91 @@ const StoreProfilePage = ({ isCollapsed, toggleMenu }) => {
             const storeResponse = await fetch('https://alabites-api.vercel.app/store');
             if (storeResponse.ok) {
               const storeData = await storeResponse.json();
-              console.log('Store data:', storeData); // Debugging log
               const userStore = storeData.data.find(store => store.storeOwner === admin.uid);
               if (userStore) {
-                console.log('User store:', userStore); // Debugging log
                 setStoreId(userStore.storeId);
-                setStoreInfo(userStore); // Set the store info
-                setStoreName(userStore.storeName); // Initialize storeName state
-                setDescription(userStore.description); // Initialize description state
-                setLogoBase64(userStore.storePicture);
+                setStoreInfo(userStore);
+                setStoreName(userStore.storeName || '');
+                setDescription(userStore.description || '');
+                setLogoBase64(userStore.storePicture || '');
+                setGcashNumber(userStore.gcashNumber || ''); // Initialize GCash number
+                setGcashQRBase64(userStore.gcashQR || ''); // Initialize GCash QR
               }
             }
           }
         }
       } catch (error) {
         console.error('Error fetching admins:', error);
+        toast.error('Error fetching store information');
+      } finally {
+        setIsLoading(false);
       }
     };
-  
+
     if (uid) {
       fetchAdminInfo();
     }
   }, [uid]);
   
   const handleSubmit = async () => {
-    try {
-        setSubmitting(true);
-
-        let updatedLogo = storeInfo?.storePicture || ''; // Ensure field name is consistent
-
-        const isNewLogoUploaded = logoFile && logoFile.name;
-
-        // Delete the old logo if a new logo is uploaded
-        if (storeInfo?.storePicture && isNewLogoUploaded) {
-            const oldLogoRef = ref(storage, storeInfo.storePicture);
-            await deleteObject(oldLogoRef);
-        }
-
-        // Upload the new logo if necessary
-        if (isNewLogoUploaded) {
-            const storageRef = ref(storage, `store_logo/${uid}_${logoFile.name}`);
-            await uploadBytes(storageRef, logoFile);
-            updatedLogo = await getDownloadURL(storageRef);
-        }
-
-        const updatedStoreInfo = {
-            storeName,
-            description,
-            storePicture: updatedLogo, // Use consistent field name
-        };
-
-        const response = await axios.put(`https://alabites-api.vercel.app/store/${storeId}`, updatedStoreInfo);
-
-        if (response.status === 200) {
-            toast.success('Store information updated successfully');
-            onClose();
-        } else {
-            toast.error(response.data.message || 'Failed to update store information');
-        }
-    } catch (error) {
-        console.error('Error updating store information:', error);
-        toast.error('Error updating store information');
-    } finally {
-        setSubmitting(false);
+    if (!storeName.trim()) {
+      toast.error('Store name is required.');
+      return;
     }
-};
 
-  
-  const handleFileChange = (event) => {
+    try {
+      setSubmitting(true);
+
+      let updatedLogo = storeInfo?.storePicture || '';
+      const isNewLogoUploaded = logoFile && logoFile.name;
+      let updatedGcashQR = storeInfo?.gcashQR || '';
+
+      if (storeInfo?.storePicture && isNewLogoUploaded) {
+        const oldLogoRef = ref(storage, storeInfo.storePicture);
+        await deleteObject(oldLogoRef);
+      }
+
+      if (isNewLogoUploaded) {
+        const storageRef = ref(storage, `store_logo/${uid}_${logoFile.name}`);
+        await uploadBytes(storageRef, logoFile);
+        updatedLogo = await getDownloadURL(storageRef);
+      }
+
+      if (gcashQRFile && gcashQRFile.name) {
+        const gcashQRRef = ref(storage, `gcash_qr/${uid}_${gcashQRFile.name}`);
+        await uploadBytes(gcashQRRef, gcashQRFile);
+        updatedGcashQR = await getDownloadURL(gcashQRRef);
+      }
+
+      const updatedStoreInfo = {
+        storeName,
+        description,
+        storePicture: updatedLogo,
+        gcashNumber,
+        gcashQR: updatedGcashQR,
+      };
+
+      const response = await axios.put(`https://alabites-api.vercel.app/store/${storeId}`, updatedStoreInfo);
+
+      if (response.status === 200) {
+        toast.success('Store information updated successfully');
+        onClose();
+      } else {
+        toast.error(response.data.message || 'Failed to update store information');
+      }
+    } catch (error) {
+      console.error('Error updating store information:', error);
+      toast.error('Error updating store information');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleLogoFileChange = (event) => {
     const file = event.target.files[0];
+
     setLogoFile(file);
-  
-    // Convert file to a base64 string or URL for preview, if needed
+
     const reader = new FileReader();
     reader.onloadend = () => {
       setLogoBase64(reader.result);
@@ -150,136 +170,183 @@ const StoreProfilePage = ({ isCollapsed, toggleMenu }) => {
       reader.readAsDataURL(file);
     }
   };
-  
+
+  const handleGcashQRFileChange = (event) => {
+    const file = event.target.files[0];
+
+    setGcashQRFile(file);
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setGcashQRBase64(reader.result);
+    };
+    if (file) {
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleDeleteLogo = async () => {
     try {
-      // Log storeInfo and storepicture for debugging
-      console.log('storeInfo:', storeInfo);
-      console.log('storeInfo.storepicture:', storeInfo?.storePicture);
-  
       if (storeInfo?.storePicture) {
         const storageRef = ref(storage, storeInfo.storePicture);
-  
-        // Log the reference to verify the correct path
-        console.log('Deleting logo from:', storeInfo.storePicture);
-  
-        // Attempt to delete the logo from Firebase
         await deleteObject(storageRef);
-  
-        // Update API to reflect the deletion of the logo
         await axios.put(`https://alabites-api.vercel.app/store/${storeInfo.storeId}`, { storePicture: null });
-  
-        // Update local state to reflect the deletion
         setLogoFile(null);
         setLogoBase64(null);
         toast.success('Logo deleted successfully');
       } else {
         toast.error('No logo to delete');
-        console.log('No logo found in storeInfo.storepicture');
       }
     } catch (error) {
-      // Log detailed error information
       console.error('Error deleting logo:', error);
-  
-      // Provide a more specific error message
-      if (error.code === 'storage/object-not-found') {
-        toast.error('Logo not found');
-      } else if (error.code === 'storage/unauthorized') {
-        toast.error('Unauthorized to delete logo');
-      } else if (error.code === 'storage/canceled') {
-        toast.error('Logo deletion canceled');
-      } else if (error.response?.status === 404) {
-        toast.error('API: Store not found');
-      } else if (error.response?.status === 403) {
-        toast.error('API: Unauthorized to update store');
-      } else {
-        toast.error('Error deleting logo');
-      }
+      toast.error('Error deleting logo');
     }
-  };  
-  
+  };
+
+  const handleDeleteGcashQR = async () => {
+    try {
+      if (storeInfo?.gcashQR) {
+        const storageRef = ref(storage, storeInfo.gcashQR);
+        await deleteObject(storageRef);
+        await axios.put(`https://alabites-api.vercel.app/store/${storeInfo.storeId}`, { gcashQR: null });
+        setGcashQRFile(null);
+        setGcashQRBase64(null);
+        toast.success('GCash QR deleted successfully');
+      } else {
+        toast.error('No GCash QR to delete');
+      }
+    } catch (error) {
+      console.error('Error deleting GCash QR:', error);
+      toast.error('Error deleting GCash QR');
+    }
+  };
+
+  if (isLoading) {
+    return <Text>Loading...</Text>;
+  }
+
   return (
     <Grid templateColumns="repeat(auto-fit, minmax(300px, 1fr))" gap={6} p={4}>
       <VerticalMenu isCollapsed={isCollapsed} toggleMenu={toggleMenu} />
       <Box
-        p={4}
-        borderWidth={1}
-        borderRadius="lg"
-        overflow="hidden"
-        boxShadow="lg"
-        as={motion.div}
-        initial={{ opacity: 0, y: 50 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <Box display="flex" justifyContent="center">
-          {logoBase64 ? (
-            <Image
-              src={logoBase64}
-              alt="Store Logo"
-              boxSize="150px"
-              borderRadius="full"
-              mr={4}
-            />
-          ) : (
-            <Box boxSize="150px" bg="gray.200" borderRadius="full" mr={4} />
-          )}
-          <Box>
-            <Heading as="h2" size="lg">{storeName}</Heading>
-            <Text fontSize="md">Description: {description}</Text>
-            <Box mt={4}>
-              <Button colorScheme="blue" leftIcon={PencilIcon} onClick={onOpen}>
-                Edit Store Profile
-              </Button>
-            </Box>
-          </Box>
-        </Box>
-      </Box>
+  p={6}
+  borderWidth={1}
+  borderRadius="lg"
+  overflow="hidden"
+  boxShadow="lg"
+  as={motion.div}
+  initial={{ opacity: 0, y: 50 }}
+  animate={{ opacity: 1, y: 0 }}
+  transition={{ duration: 0.5 }}
+  bg="white"
+>
+  <Heading as="h2" size="lg" mb={4} textAlign="center" color="teal.600">Store Profile</Heading>
   
+  <VStack spacing={4} align="start">
+    <HStack width="full" justify="space-between">
+      <Text fontWeight="bold" color="gray.800">Store Name:</Text>
+      <Text color="gray.600">{storeInfo?.storeName}</Text>
+    </HStack>
+
+    <HStack width="full" justify="space-between">
+      <Text fontWeight="bold" color="gray.800">Description:</Text>
+      <Text color="gray.600">{storeInfo?.description}</Text>
+    </HStack>
+
+    <HStack width="full" justify="space-between">
+      <Text fontWeight="bold" color="gray.800">GCash Number:</Text>
+      <Text color="gray.600">{storeInfo?.gcashNumber}</Text>
+    </HStack>
+
+    {/* Display Store Logo */}
+    {storeInfo?.storePicture && (
+      <VStack spacing={2} align="start">
+        <Text fontWeight="bold" color="gray.800">Store Logo:</Text>
+        <Image src={storeInfo.storePicture} alt="Store Logo" boxSize="100px" objectFit="cover" borderRadius="md" />
+      </VStack>
+    )}
+
+    {/* Display GCash QR Code */}
+    {storeInfo?.gcashQR && (
+      <VStack spacing={2} align="start">
+        <Text fontWeight="bold" color="gray.800">GCash QR Code:</Text>
+        <Image src={storeInfo.gcashQR} alt="GCash QR Code" boxSize="100px" objectFit="cover" borderRadius="md" />
+      </VStack>
+    )}
+  </VStack>
+
+  <Button colorScheme="teal" onClick={onOpen} leftIcon={PencilIcon} width="full" mt={4}>
+    Edit
+  </Button>
+</Box>
+
+
       <Modal isOpen={isOpen} onClose={onClose}>
         <ModalOverlay />
         <ModalContent>
           <ModalHeader>Edit Store Profile</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
+            <Text mb={2} fontWeight="bold">Store Name</Text>
             <Input
-              type="text"
-              placeholder="Store Name"
               value={storeName}
               onChange={(e) => setStoreName(e.target.value)}
-              mb={3}
-              isRequired
+              placeholder="Enter store name"
+              mb={4}
             />
+            <Text mb={2} fontWeight="bold">Description</Text>
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Store Description"
-              mb={3}
+              placeholder="Enter description"
+              resize="none"
+              mb={4}
             />
-            <Input type="file" onChange={handleFileChange} mb={3} />
-  
-            {logoBase64 ? (
-              <Box display="flex" justifyContent="space-between" alignItems="center" mt={3}>
-                <Button colorScheme="red" onClick={handleDeleteLogo}>
-                  Delete Logo
-                </Button>
-                <Image src={logoBase64} alt="Store Logo" boxSize="50px" borderRadius="full" />
-              </Box>
-            ) : (
-              <Text>No logo uploaded</Text>
+            <Text mb={2} fontWeight="bold">GCash Number</Text>
+            <Input
+              value={gcashNumber}
+              onChange={(e) => setGcashNumber(e.target.value)}
+              placeholder="Enter GCash number"
+              maxLength={11} // Limit to 11 digits
+              mb={4}
+            />
+            <Text mb={2} fontWeight="bold">Store Logo</Text>
+            <Input
+              type="file"
+              accept="image/*"
+              onChange={handleLogoFileChange}
+              mb={4}
+            />
+            {logoBase64 && (
+              <Image src={logoBase64} alt="Store Logo" boxSize="100px" objectFit="cover" mt={2} />
+            )}
+            {storeInfo?.storePicture && (
+              <Button mt={2} colorScheme="red" onClick={handleDeleteLogo}>Delete Logo</Button>
+            )}
+            <Text mb={2} fontWeight="bold">GCash QR Code</Text>
+            <Input
+              type="file"
+              accept="image/*"
+              onChange={handleGcashQRFileChange}
+              mb={4}
+            />
+            {gcashQRBase64 && (
+              <Image src={gcashQRBase64} alt="GCash QR Code" boxSize="100px" objectFit="cover" mt={2} />
+            )}
+            {storeInfo?.gcashQR && (
+              <Button mt={2} colorScheme="red" onClick={handleDeleteGcashQR}>Delete GCash QR</Button>
             )}
           </ModalBody>
           <ModalFooter>
-            <Button colorScheme="blue" onClick={handleSubmit} isLoading={submitting}>
-              Save Changes
-            </Button>
+            <Button colorScheme="teal" onClick={handleSubmit} isLoading={submitting}>Save</Button>
+            <Button onClick={onClose} ml={3}>Cancel</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
       <ToastContainer />
     </Grid>
-  );  
+  );
+  
 };
 
 export default StoreProfilePage;
