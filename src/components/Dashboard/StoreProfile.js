@@ -78,7 +78,7 @@ const StoreProfilePage = ({ isCollapsed, toggleMenu }) => {
                 setStoreInfo(userStore); // Set the store info
                 setStoreName(userStore.storeName); // Initialize storeName state
                 setDescription(userStore.description); // Initialize description state
-                setLogoBase64(userStore.storepicture);
+                setLogoBase64(userStore.storePicture);
               }
             }
           }
@@ -93,56 +93,50 @@ const StoreProfilePage = ({ isCollapsed, toggleMenu }) => {
     }
   }, [uid]);
   
-
   const handleSubmit = async () => {
     try {
-      setSubmitting(true);
-  
-      let updatedLogo = storeInfo?.storepicture || ''; // Keep the old logo if no new logo is uploaded
-  
-      // Check if a new logo file is being uploaded
-      const isNewLogoUploaded = logoFile && logoFile.name;
-  
-      // Delete the old logo if there is one and a new logo is uploaded
-      if (storeInfo?.storepicture && isNewLogoUploaded) {
-        const oldLogoRef = ref(storage, storeInfo.storepicture);
-        await deleteObject(oldLogoRef);
-      }
-  
-      // Upload the new logo if there is one
-      if (isNewLogoUploaded) {
-        const storageRef = ref(storage, `store_logo/${uid}_${logoFile.name}`);
-        await uploadBytes(storageRef, logoFile);
-        updatedLogo = await getDownloadURL(storageRef);
-      }
-  
-      const updatedStoreInfo = {
-        storeName,
-        description,
-        storepicture: updatedLogo, // Update the storepicture field
-      };
-  
-      // Ensure storeId is set and used correctly
-      const response = await axios.put(`https://alabites-api.vercel.app/store/${storeId}`, updatedStoreInfo);
-  
-      if (response.status === 200) {
-        toast.success('Store information updated successfully');
-        onClose();
-      } else {
-        const errorMessage = response.data.message || 'Failed to update store information';
-        toast.error(errorMessage);
-      }
-    } catch (error) {
-      console.error('Error updating store information:', error);
-      toast.error('Error updating store information');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-  
-  
-  
+        setSubmitting(true);
 
+        let updatedLogo = storeInfo?.storePicture || ''; // Ensure field name is consistent
+
+        const isNewLogoUploaded = logoFile && logoFile.name;
+
+        // Delete the old logo if a new logo is uploaded
+        if (storeInfo?.storePicture && isNewLogoUploaded) {
+            const oldLogoRef = ref(storage, storeInfo.storePicture);
+            await deleteObject(oldLogoRef);
+        }
+
+        // Upload the new logo if necessary
+        if (isNewLogoUploaded) {
+            const storageRef = ref(storage, `store_logo/${uid}_${logoFile.name}`);
+            await uploadBytes(storageRef, logoFile);
+            updatedLogo = await getDownloadURL(storageRef);
+        }
+
+        const updatedStoreInfo = {
+            storeName,
+            description,
+            storePicture: updatedLogo, // Use consistent field name
+        };
+
+        const response = await axios.put(`https://alabites-api.vercel.app/store/${storeId}`, updatedStoreInfo);
+
+        if (response.status === 200) {
+            toast.success('Store information updated successfully');
+            onClose();
+        } else {
+            toast.error(response.data.message || 'Failed to update store information');
+        }
+    } catch (error) {
+        console.error('Error updating store information:', error);
+        toast.error('Error updating store information');
+    } finally {
+        setSubmitting(false);
+    }
+};
+
+  
   const handleFileChange = (event) => {
     const file = event.target.files[0];
     setLogoFile(file);
@@ -160,14 +154,21 @@ const StoreProfilePage = ({ isCollapsed, toggleMenu }) => {
 
   const handleDeleteLogo = async () => {
     try {
-      if (storeInfo?.storepicture) {
-        const storageRef = ref(storage, storeInfo.storepicture);
+      // Log storeInfo and storepicture for debugging
+      console.log('storeInfo:', storeInfo);
+      console.log('storeInfo.storepicture:', storeInfo?.storePicture);
+  
+      if (storeInfo?.storePicture) {
+        const storageRef = ref(storage, storeInfo.storePicture);
   
         // Log the reference to verify the correct path
-        console.log('Deleting logo from:', storeInfo.storepicture);
+        console.log('Deleting logo from:', storeInfo.storePicture);
   
-        // Attempt to delete the logo
+        // Attempt to delete the logo from Firebase
         await deleteObject(storageRef);
+  
+        // Update API to reflect the deletion of the logo
+        await axios.put(`https://alabites-api.vercel.app/store/${storeInfo.storeId}`, { storePicture: null });
   
         // Update local state to reflect the deletion
         setLogoFile(null);
@@ -175,6 +176,7 @@ const StoreProfilePage = ({ isCollapsed, toggleMenu }) => {
         toast.success('Logo deleted successfully');
       } else {
         toast.error('No logo to delete');
+        console.log('No logo found in storeInfo.storepicture');
       }
     } catch (error) {
       // Log detailed error information
@@ -187,20 +189,39 @@ const StoreProfilePage = ({ isCollapsed, toggleMenu }) => {
         toast.error('Unauthorized to delete logo');
       } else if (error.code === 'storage/canceled') {
         toast.error('Logo deletion canceled');
+      } else if (error.response?.status === 404) {
+        toast.error('API: Store not found');
+      } else if (error.response?.status === 403) {
+        toast.error('API: Unauthorized to update store');
       } else {
         toast.error('Error deleting logo');
       }
     }
-  };
+  };  
   
-
   return (
     <Grid templateColumns="repeat(auto-fit, minmax(300px, 1fr))" gap={6} p={4}>
       <VerticalMenu isCollapsed={isCollapsed} toggleMenu={toggleMenu} />
-      <Box p={4} borderWidth={1} borderRadius="lg" overflow="hidden" boxShadow="lg" as={motion.div} initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+      <Box
+        p={4}
+        borderWidth={1}
+        borderRadius="lg"
+        overflow="hidden"
+        boxShadow="lg"
+        as={motion.div}
+        initial={{ opacity: 0, y: 50 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
         <Box display="flex" justifyContent="center">
           {logoBase64 ? (
-            <Image src={logoBase64} alt="Store Logo" boxSize="150px" borderRadius="full" mr={4} />
+            <Image
+              src={logoBase64}
+              alt="Store Logo"
+              boxSize="150px"
+              borderRadius="full"
+              mr={4}
+            />
           ) : (
             <Box boxSize="150px" bg="gray.200" borderRadius="full" mr={4} />
           )}
@@ -215,15 +236,39 @@ const StoreProfilePage = ({ isCollapsed, toggleMenu }) => {
           </Box>
         </Box>
       </Box>
+  
       <Modal isOpen={isOpen} onClose={onClose}>
         <ModalOverlay />
         <ModalContent>
           <ModalHeader>Edit Store Profile</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
-            <Input type="text" placeholder="Store Name" value={storeName} onChange={(e) => setStoreName(e.target.value)} mb={3} isRequired />
-            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Store Description" mb={3} />
+            <Input
+              type="text"
+              placeholder="Store Name"
+              value={storeName}
+              onChange={(e) => setStoreName(e.target.value)}
+              mb={3}
+              isRequired
+            />
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Store Description"
+              mb={3}
+            />
             <Input type="file" onChange={handleFileChange} mb={3} />
+  
+            {logoBase64 ? (
+              <Box display="flex" justifyContent="space-between" alignItems="center" mt={3}>
+                <Button colorScheme="red" onClick={handleDeleteLogo}>
+                  Delete Logo
+                </Button>
+                <Image src={logoBase64} alt="Store Logo" boxSize="50px" borderRadius="full" />
+              </Box>
+            ) : (
+              <Text>No logo uploaded</Text>
+            )}
           </ModalBody>
           <ModalFooter>
             <Button colorScheme="blue" onClick={handleSubmit} isLoading={submitting}>
@@ -234,7 +279,7 @@ const StoreProfilePage = ({ isCollapsed, toggleMenu }) => {
       </Modal>
       <ToastContainer />
     </Grid>
-  );
+  );  
 };
 
 export default StoreProfilePage;
